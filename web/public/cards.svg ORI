@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 280">
+  <defs>
+    <g id="card_frame">
+      <rect x="2" y="2" width="196" height="276" rx="12" ry="12" fill="white" stroke="black"/>
+    </g>
+    <g id="spade_king">
+      <use href="#card_frame"/>
+      <text x="12" y="28" font-size="20">K♠</text>
+      <text x="100" y="150" text-anchor="middle" font-size="80">♠</text>
+    </g>
+    <g id="heart_1">
+      <use href="#card_frame"/>
+      <text x="12" y="28" font-size="20">A♥</text>
+      <text x="100" y="150" text-anchor="middle" font-size="80">♥</text>
+    </g>
+    <g id="diamond_10">
+      <use href="#card_frame"/>
+      <text x="12" y="28" font-size="20">10◆</text>
+      <text x="100" y="150" text-anchor="middle" font-size="80">◆</text>
+    </g>
+    <g id="club_queen">
+      <use href="#card_frame"/>
+      <text x="12" y="28" font-size="20">Q♣</text>
+      <text x="100" y="150" text-anchor="middle" font-size="80">♣</text>
+    </g>
+    <g id="spade_7">
+      <use href="#card_frame"/>
+      <text x="12" y="28" font-size="20">7♠</text>
+      <text x="100" y="150" text-anchor="middle" font-size="80">♠</text>
+    </g>
+    <g id="back">
+      <rect x="2" y="2" width="196" height="276" rx="12" ry="12" fill="#1e90ff" stroke="black"/>
+      <circle cx="100" cy="140" r="60" fill="white" opacity="0.4"/>
+    </g>
+  </defs>
+</svg>
