@@ -1,1 +1,20 @@
-"node_modules/"  ".env"  ".svelte-kit/"  "package-lock.json" 
+# Dépendances
+node_modules/
+.svelte-kit/
+
+# Build
+build/
+dist/
+
+# Binaires Go compilés
+*.exe
+server/server
+
+# Environnement & secrets
+.env
+.env.*
+!.env.example
+
+# Éditeurs / OS
+.DS_Store
+*.log
