@@ -33,6 +33,14 @@
   // de muter la prop (flux de données unidirectionnel).
   function flip() { dispatch('flip') }
 
+  // Accessibilité clavier : Enter et Espace déclenchent le flip (comme un bouton).
+  function handleKey(e) {
+    if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') {
+      e.preventDefault()
+      flip()
+    }
+  }
+
   onMount(() => {
     const symRoot = document.getElementById('__cards_symbols__')
     if (symRoot) {
@@ -45,6 +53,18 @@
   afterUpdate(setBoth)
 </script>
 
-<svg class="card" {width} {height} viewBox="0 0 200 280" preserveAspectRatio="xMidYMid meet" style="transform-style:preserve-3d; will-change:transform; overflow:visible" on:click={flip}>
+<svg
+  class="card"
+  {width}
+  {height}
+  viewBox="0 0 200 280"
+  preserveAspectRatio="xMidYMid meet"
+  style="transform-style:preserve-3d; will-change:transform; overflow:visible"
+  role="button"
+  tabindex="0"
+  aria-label="Carte {currentId}"
+  on:click={flip}
+  on:keydown={handleKey}
+>
   <use bind:this={useEl}></use>
 </svg>
