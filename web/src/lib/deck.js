@@ -19,9 +19,20 @@ export function fullDeck() {
   )
 }
 
+// Mélange non biaisé (Fisher-Yates). `Array.sort(() => 0.5 - Math.random())`
+// produit une distribution inégale et ne convient pas à un jeu de cartes.
+export function shuffle(arr) {
+  const a = [...arr]
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[a[i], a[j]] = [a[j], a[i]]
+  }
+  return a
+}
+
 // Distribution simple
 export function dealToHands(deck, players = 4, perPlayer = 5) {
-  const shuffled = [...deck].sort(() => 0.5 - Math.random())
+  const shuffled = shuffle(deck)
   const hands = Array.from({ length: players }, () => [])
   for (let i = 0; i < perPlayer; i++) {
     for (let p = 0; p < players; p++) {
