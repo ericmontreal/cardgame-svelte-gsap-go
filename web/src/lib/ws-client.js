@@ -1,23 +1,35 @@
-// Client WebSocket minimal pour le serveur Go du projet.
+// Client WebSocket pour le serveur Go autoritaire du projet de table de cartes.
 //
-// Convention de messages (compatible avec le relay/broadcast actuel du serveur) :
-//   { type: 'join',  room, sender }
-//   { type: 'chat',  room, sender, payload: { text } }
-//   { type: 'deal',  room, sender, payload: { hands, perPlayer } }  // synchro d'un deal
-//   { type: 'state', room, sender, payload: { ... } }               // état libre (réservé)
-//   { type: 'ping' } / { type: 'pong' }                              // keep-alive géré ici
+// Convention de messages (état serveur = source de vérité, §5) :
+//   E : émetteur   R : recepteur
 //
-// Le serveur actuel se contente de relayer à la room (sauf l'émetteur),
-// donc la "synchro" est coopérative : un client émet un 'deal', les autres
-// l'appliquent. Ce n'est pas un état autoritaire — voir README.
+//   client -> serveur
+//     { type:'init',      payload:{ config, shuffle } }           prépare le sabot (menu init)
+//     { type:'flip',      payload:{ cardId } }                     retourne une carte
+//     { type:'front',     payload:{ cardId } }                     amène au premier plan (clic)
+//     { type:'rotate',    payload:{ cardId, rotate } }             rotation
+//     { type:'move',      payload:{ cardId, x, y } }               drop sur la table
+//     { type:'drag',      payload:{ cardId, x, y } }               position live (fluidité)
+//     { type:'transfer',  payload:{ cardId, target, x, y, ownerId } }  change de zone
+//     { type:'sabotDraw', payload:{ target, x, y, ownerId } }      tire le sommet du sabot
+//     { type:'chat',      payload:{ text } }
+//     { type:'ping' }
+//
+//   serveur -> client
+//     { type:'state',   payload:{ sabotCount, table[], players[], initialized } }
+//     { type:'hand',    payload:{ cards[] } }    (main privée, propriétaire seul)
+//     { type:'drag',    payload:{ cardId, x, y } } (drag live d'un autre client)
+//     { type:'chat',    sender, payload:{ author, text, at } }
+//     { type:'pong' }
 
 const DEFAULTS = {
   url: 'ws://localhost:8080/ws',
   room: 'lobby',
-  pingInterval: 25000,   // ms
-  reconnectDelay: 1000,  // ms, délai initial puis backoff
+  token: '',                 // token de session (POST /api/login)
+  pingInterval: 25000,       // ms
+  reconnectDelay: 1000,      // ms, délai initial puis backoff exponentiel
   maxReconnectDelay: 15000,
-  maxReconnectAttempts: 0, // 0 = infini
+  maxReconnectAttempts: 0,   // 0 = infini
 }
 
 export function createWsClient(opts = {}) {
@@ -62,12 +74,23 @@ export function createWsClient(opts = {}) {
     if (pingTimer) { clearInterval(pingTimer); pingTimer = null }
   }
 
+  function buildUrl() {
+    const u = new URL(cfg.url)
+    u.searchParams.set('room', cfg.room)
+    if (cfg.token) u.searchParams.set('token', cfg.token)
+    return u.toString()
+  }
+
   function connect() {
     if (manuallyClosed) return
-    const url = `${cfg.url}?room=${encodeURIComponent(cfg.room)}`
+    if (!cfg.token) {
+      // Sans token, la connexion serait rejetée par le serveur (401).
+      emitStatus('error', { error: 'missing token' })
+      return
+    }
     emitStatus('connecting')
     try {
-      ws = new WebSocket(url)
+      ws = new WebSocket(buildUrl())
     } catch (e) {
       emitStatus('error', { error: e })
       scheduleReconnect()
@@ -75,8 +98,7 @@ export function createWsClient(opts = {}) {
     }
 
     ws.addEventListener('open', () => {
-      // Annonce de présence dans la room
-      send({ type: 'join', room: cfg.room })
+      // Pas de 'join' : le serveur enregistre le joueur à l'upgrade (token).
       setStatusOpen()
     })
 
@@ -88,8 +110,7 @@ export function createWsClient(opts = {}) {
         return // message non JSON ignoré
       }
       if (!msg || typeof msg !== 'object') return
-      // pong interne : on ne propage pas
-      if (msg.type === 'pong') return
+      if (msg.type === 'pong') return  // keep-alive interne, non propagé
       for (const fn of listeners) fn(msg)
     })
 
@@ -126,14 +147,42 @@ export function createWsClient(opts = {}) {
     emitStatus('closed', { reason: 'manual' })
   }
 
-  return {
+  // ---- Envoi typé (wrappers autour de send) ----
+  const api = {
     connect,
     close,
     send,
-    // Envoi typé pratique
-    sendDeal(hands, perPlayer) {
-      return send({ type: 'deal', room: cfg.room, payload: { hands, perPlayer } })
+
+    setToken(token) { cfg.token = token },
+
+    sendInit(config, shuffle = false) {
+      return send({ type: 'init', payload: { config, shuffle } })
     },
+    sendFlip(cardId) {
+      return send({ type: 'flip', payload: { cardId } })
+    },
+    sendFront(cardId) {
+      return send({ type: 'front', payload: { cardId } })
+    },
+    sendRotate(cardId, rotate) {
+      return send({ type: 'rotate', payload: { cardId, rotate } })
+    },
+    sendMove(cardId, x, y) {
+      return send({ type: 'move', payload: { cardId, x, y } })
+    },
+    sendDrag(cardId, x, y) {
+      return send({ type: 'drag', payload: { cardId, x, y } })
+    },
+    sendTransfer(cardId, target, x, y, ownerId = '') {
+      return send({ type: 'transfer', payload: { cardId, target, x, y, ownerId } })
+    },
+    sendSabotDraw(target, x, y, ownerId = '') {
+      return send({ type: 'sabotDraw', payload: { target, x, y, ownerId } })
+    },
+    sendChat(text) {
+      return send({ type: 'chat', payload: { text } })
+    },
+
     // Abonnements. Chaque "on" retourne une fonction de désabonnement.
     on(handler) {
       listeners.add(handler)
@@ -146,5 +195,9 @@ export function createWsClient(opts = {}) {
     get readyState() {
       return ws ? ws.readyState : WebSocket.CLOSED
     },
+    get config() {
+      return cfg
+    },
   }
+  return api
 }

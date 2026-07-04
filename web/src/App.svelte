@@ -1,158 +1,207 @@
 <script>
-  import { onMount, tick } from 'svelte'
-  import Card from './lib/Card.svelte'
-  import { ensureInlineSprite } from './lib/svg-sprite'
-  import { dealToHands, fullDeck } from './lib/deck'
-  import { dealFromCenter } from './lib/cards-anim'
-  import { createWsClient } from './lib/ws-client'
+  // Application principale : layout 3 zones (§7), gate d'auth (§10), menu init
+  // (§4), câblage WebSocket avec le serveur autoritaire (§5/§12).
+  import { onMount, onDestroy } from 'svelte'
+  import { gsap } from 'gsap'
 
-  const PLAYERS = 4
-  const PER_PLAYER = 5
+  import {
+    tableState, myHand, wsStatus,
+    applyState, applyHand, applyChat, liveDrag,
+    loadSession, saveSession, clearSession, resetLocal, login,
+  } from './lib/store.js'
+  import { createWsClient } from './lib/ws-client.js'
+  import { ensureInlineSprite } from './lib/svg-sprite.js'
 
-  let spriteReady = false
-  // Mains vides tant qu'aucun deal n'a été synchronisé
-  let allHands = Array.from({ length: PLAYERS }, () => [])
+  import Login from './lib/Login.svelte'
+  import InitMenu from './lib/InitMenu.svelte'
+  import Table from './lib/Table.svelte'
+  import Hand from './lib/Hand.svelte'
+  import Chat from './lib/Chat.svelte'
 
-  // Références DOM / composants collectées via bindings Svelte (pas de
-  // querySelectorAll global) :
-  //  - handEls : conteneurs de chaque main (cibles de l'animation)
-  //  - cardRefs : instances Card, pour récupérer leur nœud via getEl()
-  let deckEl
-  let handEls = []
-  let cardRefs = []
+  // ---- Étapes d'application ----
+  // auth -> init -> table. La session est restaurée depuis localStorage.
+  let session = loadSession()
+  let step = session ? 'init' : 'auth'   // si déjà connecté, on saute au menu init
+  let errorMsg = ''
 
-  // État connexion WS (affiché à l'utilisateur)
-  let connStatus = 'idle'
-  let connInfo = ''
+  // Aide de connexion : comptes démo si USERS_SEED non défini côté serveur.
+  const SEED_HINT = 'Comptes démo : alice/secret, bob/secret'
 
-  let ws
-  let dealBroadcastTimer = null
-  let lastDealSeq = null
+  // ---- Client WebSocket ----
+  let ws = null
+  let unsubMsg = null
+  let unsubStatus = null
 
-  // Réinitialise les tableaux de références avant un nouveau rendu des cartes.
-  function resetRefs() {
-    cardRefs = new Array(PLAYERS * PER_PLAYER)
-    handEls = new Array(PLAYERS)
+  function connectWs() {
+    if (ws) return
+    ws = createWsClient({ token: session.token })
+    unsubMsg = ws.on(handleServerMsg)
+    unsubStatus = ws.onStatus((s) => wsStatus.set(s))
+    ws.connect()
   }
 
-  // Retourne les nœuds DOM des cartes présentes, dans l'ordre, via les
-  // instances Card (méthode getEl exposée par le composant).
-  function collectCardNodes() {
-    return (cardRefs || [])
-      .filter(Boolean)
-      .map((c) => c.getEl?.())
-      .filter(Boolean)
+  function disconnectWs() {
+    if (unsubMsg) { unsubMsg(); unsubMsg = null }
+    if (unsubStatus) { unsubStatus(); unsubStatus = null }
+    if (ws) { ws.close(); ws = null }
   }
 
-  // Bascule l'état d'une carte. On réassigne l'objet dans la main pour la
-  // réactivité Svelte (flux unidirectionnel : le parent est seul maître de
-  // l'état, l'enfant émet 'flip' sans toucher à sa prop).
-  function flipCard(h, i) {
-    const hand = allHands[h]
-    if (!hand || !hand[i]) return
-    const card = hand[i]
-    allHands[h][i] = { ...card, faceUp: !card.faceUp }
-  }
-
-  // Applique un jeu de mains reçu (du serveur ou généré localement), puis
-  // lance l'animation GSAP de distribution depuis le centre.
-  async function applyHands(hands) {
-    resetRefs()
-    allHands = hands
-    await tick()
-    if (!spriteReady) return
-    const cardNodes = collectCardNodes()
-    const targets = handEls.filter(Boolean)
-    if (cardNodes.length && targets.length) {
-      dealFromCenter(cardNodes, deckEl, targets, { perPlayer: PER_PLAYER, stagger: 0.06 })
+  // ---- Réception des messages serveur ----
+  function handleServerMsg(msg) {
+    switch (msg.type) {
+      case 'state':
+        applyState(msg.payload)
+        break
+      case 'hand':
+        applyHand(msg.payload)
+        break
+      case 'chat':
+        applyChat(msg)
+        break
+      case 'drag':
+        // Drag live d'un autre joueur : on met à jour la position éphémère.
+        if (msg.payload) {
+          liveDrag.set({ cardId: msg.payload.cardId, x: msg.payload.x, y: msg.payload.y })
+        }
+        break
     }
   }
 
-  onMount(async () => {
-    await ensureInlineSprite('/cards.svg')
-    spriteReady = true
+  // ---- Auth ----
+  function onLoginSuccess(e) {
+    session = e.detail
+    saveSession(session)
+    step = 'init'
+  }
 
-    ws = createWsClient({ room: 'lobby' })
-
-    ws.onStatus((status, extra) => {
-      connStatus = status
-      connInfo = extra && extra.attempt ? ` (essai ${extra.attempt})` : ''
-    })
-
-    // À la réception d'un deal diffusé par un autre client, on l'applique
-    // sans régénérer de distribution (synchro coopérative).
-    ws.on((msg) => {
-      if (msg.type === 'deal' && msg.payload && Array.isArray(msg.payload.hands)) {
-        // Anti-doublon : on ignore strictement le même jeu de mains deux fois.
-        const seq = JSON.stringify(msg.payload.hands)
-        if (seq === lastDealSeq) return
-        lastDealSeq = seq
-        if (dealBroadcastTimer) { clearTimeout(dealBroadcastTimer); dealBroadcastTimer = null }
-        applyHands(msg.payload.hands)
+  // ---- Menu init -> ouverture de la table ----
+  function onInitStart(e) {
+    const { config, shuffle } = e.detail
+    connectWs()
+    // On attend que la WS soit ouverte pour envoyer l'init. La reconnexion
+    // automatique du client permet de retenter l'envoi ; on bourrine un peu.
+    const trySend = () => {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.sendInit(config, shuffle)
+        step = 'table'
+        return
       }
-    })
+      setTimeout(trySend, 150)
+    }
+    trySend()
+  }
 
-    ws.connect()
+  // ---- Actions de table (remontées des composants) -> serveur ----
+  function sendMove(e)    { ws?.sendMove(e.detail.cardId, e.detail.x, e.detail.y) }
+  function sendDrag(e)    { ws?.sendDrag(e.detail.cardId, e.detail.x, e.detail.y) }
+  function sendFlip(e)    { ws?.sendFlip(e.detail.cardId) }
+  function sendFront(e)   { ws?.sendFront(e.detail.cardId) }
+  function sendTransfer(e) {
+    const d = e.detail
+    ws?.sendTransfer(d.cardId, d.target, d.x ?? 0, d.y ?? 0, d.ownerId ?? '')
+  }
+  function sendSabotDraw(e) {
+    const d = e.detail
+    ws?.sendSabotDraw(d.target, d.x ?? 0, d.y ?? 0, d.ownerId ?? '')
+  }
+  function sendChat(text) { ws?.sendChat(text) }
 
-    // Stratégie de synchro coopérative : un client qui vient d'arriver attend
-    // brièvement qu'un autre lui envoie un deal. Si rien n'arrive, il génère
-    // lui-même la distribution et la diffuse à la room.
-    dealBroadcastTimer = setTimeout(() => {
-      if (lastDealSeq) return // un deal a déjà été reçu
-      const hands = dealToHands(fullDeck(), PLAYERS, PER_PLAYER)
-      lastDealSeq = JSON.stringify(hands)
-      ws.sendDeal(hands, PER_PLAYER)
-      applyHands(hands)
-    }, 1200)
+  // ---- Déconnexion ----
+  function logout() {
+    disconnectWs()
+    clearSession()
+    resetLocal()
+    session = null
+    step = 'auth'
+  }
+
+  // ---- Cycle de vie : chargement du sprite de cartes ----
+  onMount(async () => {
+    try { await ensureInlineSprite('/cards.svg') } catch (e) { console.warn(e) }
   })
+  onDestroy(() => disconnectWs())
+
+  // Statut lisible pour la barre supérieure.
+  $: statusLabel = {
+    idle: 'déconnecté', connecting: 'connexion…', open: 'connecté',
+    reconnecting: 'reconnexion…', closed: 'déconnecté', error: 'erreur',
+  }[$wsStatus] || $wsStatus
+
+  // État réactif partagé (tableState + myHand) pour les sous-composants.
+  $: st = $tableState
+  $: hand = $myHand
 </script>
 
-<style>
-  .table { position: relative; min-height: 70vh; }
-  .center { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); }
-  .row    { display:flex; gap:12px; flex-wrap:wrap; justify-content:center; margin:12px 0; }
-  .status {
-    display:inline-block; padding:4px 10px; border-radius:999px;
-    font-size:13px; margin:0 0 12px;
-    background:#eef; color:#335; border:1px solid #ccd;
-  }
-  .status.open        { background:#e6f6e6; color:#225; border-color:#9d9; }
-  .status.connecting  { background:#fff8e0; color:#553; border-color:#dc9; }
-  .status.reconnecting{ background:#fff0e0; color:#642; border-color:#ea7; }
-  .status.error       { background:#fde; color:#622; border-color:#e99; }
-</style>
+<main class="app">
+  {#if step === 'auth'}
+    <Login seedHint={SEED_HINT} on:success={onLoginSuccess} />
 
-<main style="padding:16px; font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial">
-  <h1 style="margin:0 0 8px">Jeu de cartes — Svelte + GSAP</h1>
-  <p style="margin:0 0 16px">Distribution depuis la pile centrale vers 4 mains.</p>
+  {:else if step === 'init'}
+    <InitMenu seedHint={SEED_HINT} on:start={onInitStart} />
 
-  <div class="status {connStatus}">
-    Connexion : <strong>{connStatus}{connInfo}</strong>
-  </div>
+  {:else}
+    <div class="layout">
+      <header class="topbar">
+        <span class="brand">🃏 Table de cartes</span>
+        <span class="me">Connecté en tant que <b>{session.name}</b></span>
+        <span class="status" data-s={$wsStatus}>● {statusLabel}</span>
+        <button class="logout" on:click={logout}>Déconnexion</button>
+      </header>
 
-  <div class="table">
-    <!-- Pile centrale -->
-    <div class="center" bind:this={deckEl}>
-      {#if spriteReady}
-        <svg width="40" height="56" viewBox="0 0 200 280"><use href="#sym-back"/></svg>
-      {/if}
+      <div class="body">
+        <Table
+          table={st.table}
+          players={st.players}
+          sabotCount={st.sabotCount}
+          initialized={st.initialized}
+          myUserId={session.id}
+          on:move={sendMove}
+          on:drag={sendDrag}
+          on:flip={sendFlip}
+          on:front={sendFront}
+          on:transfer={sendTransfer}
+          on:sabotDraw={sendSabotDraw}
+        />
+
+        <Chat onSend={sendChat} />
+      </div>
+
+      <Hand {hand} myUserId={session.id}
+        on:flip={sendFlip}
+        on:front={sendFront}
+        on:transfer={sendTransfer}
+      />
     </div>
-
-    {#if spriteReady}
-      <!-- Les 4 mains, rendues de façon pilotée par les données -->
-      {#each allHands as hand, h}
-        <div class="row" bind:this={handEls[h]}>
-          {#each hand as c, i}
-            <Card
-              bind:this={cardRefs[h * PER_PLAYER + i]}
-              {c}
-              width={100}
-              height={140}
-              on:flip={() => flipCard(h, i)}
-            />
-          {/each}
-        </div>
-      {/each}
-    {/if}
-  </div>
+  {/if}
 </main>
+
+<style>
+  :global(html, body, #app) { height: 100%; margin: 0; }
+  :global(body) { background: #062016; color: #eef; font-family: system-ui, sans-serif; }
+
+  .app { height: 100vh; display: flex; flex-direction: column; }
+
+  .layout { flex: 1; display: grid; grid-template-rows: auto 1fr auto; min-height: 0; }
+
+  .topbar {
+    display: flex; align-items: center; gap: 1rem;
+    padding: 8px 14px;
+    background: rgba(0,0,0,0.45);
+    border-bottom: 2px solid rgba(255,255,255,0.1);
+    font-size: .9rem;
+  }
+  .brand { font-weight: 700; }
+  .me { opacity: .85; }
+  .me b { color: #ffd27a; }
+  .status { margin-left: auto; font-size: .8rem; opacity: .85; }
+  .status[data-s="open"] { color: #6fe39a; }
+  .status[data-s="connecting"], .status[data-s="reconnecting"] { color: #ffd27a; }
+  .status[data-s="closed"], .status[data-s="error"], .status[data-s="idle"] { color: #ff9a9a; }
+  .logout {
+    border: 1px solid rgba(255,255,255,0.2); background: transparent; color: #eef;
+    padding: .35rem .7rem; border-radius: 7px; cursor: pointer; font-size: .85rem;
+  }
+  .logout:hover { background: rgba(255,255,255,0.1); }
+
+  .body { display: grid; grid-template-columns: 1fr auto; min-height: 0; }
+</style>
