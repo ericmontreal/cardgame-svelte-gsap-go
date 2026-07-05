@@ -97,7 +97,10 @@
     // Position live du drag (pour fluidité inter-clients + vue locale).
     dispatch('drag', { cardId: c.id, x: nx, y: ny })
     if (rootEl) {
-      gsap.set(rootEl, { x: nx, y: ny })
+      // Le conteneur parent (Table.svelte `.card-anchor`) est déjà positionné
+      // à (originX, originY) : n'appliquer ici que le delta parcouru depuis
+      // le point de prise, sinon la carte "saute" (double décalage).
+      gsap.set(rootEl, { x: dx, y: dy })
     }
   }
 
@@ -105,6 +108,9 @@
     if (!dragging) return
     dragging = false
     try { e.currentTarget.releasePointerCapture(e.pointerId) } catch {}
+    // Remise à zéro du transform local : la position finale est portée par
+    // (c.x, c.y) une fois l'état confirmé par le serveur reçu.
+    if (rootEl) gsap.set(rootEl, { x: 0, y: 0 })
     if (!moved) {
       // Pas de déplacement : c'est un clic -> "dragend without move" laisse
       // le parent (on:dblclick) gérer le flip / le clic = front.
