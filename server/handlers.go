@@ -94,6 +94,20 @@ func (app *application) sendHand(room, userID string) {
 	}
 }
 
+// sendHandToAll envoie sa main privée à jour à chaque joueur connecté de la
+// room (une connexion par onglet/fenêtre ; on déduplique par userID). Utilisé
+// après un rechargement complet du sabot (init), qui vide toutes les mains.
+func (app *application) sendHandToAll(room string) {
+	seen := map[string]bool{}
+	for _, cli := range app.hub.clients(room) {
+		if seen[cli.userID] {
+			continue
+		}
+		seen[cli.userID] = true
+		app.sendHand(room, cli.userID)
+	}
+}
+
 // notifyHandChanges envoie une main privée à jour à chaque joueur impacté par
 // un TransferResult (destinataire qui en gagne une, propriétaire précédent qui
 // en perd une). Sans ce second envoi, une carte sortie d'une main restait
@@ -150,6 +164,12 @@ func (app *application) handleClientMsg(c *client, room string, m Message) {
 		app.engine.mu.Unlock()
 		log.Printf("init: sabot chargé (%d cartes) par %s", len(cards), c.name)
 		app.broadcastState(room)
+		// LoadDeck repart d'un sabot neuf : toute carte précédemment en main
+		// disparaît de l'état serveur. Sans ce renvoi, la main de chaque
+		// joueur restait affichée avec ses anciennes cartes côté client
+		// jusqu'à un événement fortuit (§ nouvelle partie doit vider les
+		// mains de tous).
+		app.sendHandToAll(room)
 
 	// --- Opérations sur une carte de table ---------------------------------
 	case "flip":

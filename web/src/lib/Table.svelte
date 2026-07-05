@@ -19,9 +19,10 @@
 
   let tableEl
   let tableRect = null
-  // Position fixe du sabot sur le tapis (zone de design). Le joueur peut le
-  // déplacer en le glissant, mais son emplacement par défaut est stable.
-  const SABOT_POS = { x: 28, y: 28 }
+  // Position fixe du sabot sur le tapis (zone de design), centrée sur le
+  // feutre (table 1000x640, carte de sabot 92x128 par défaut). Le joueur peut
+  // le déplacer en le glissant, mais son emplacement par défaut est stable.
+  const SABOT_POS = { x: 454, y: 256 }
 
   function refreshRect() {
     if (tableEl) tableRect = tableEl.getBoundingClientRect()
@@ -167,19 +168,25 @@
     flex: 1;
     overflow: auto;
     position: relative;
-    background: #062016;
+    background: #1a120b;
   }
   .table {
     position: relative;
     width: 1000px;
     min-height: 640px;
     margin: 0 auto;
+    /* pourtour "bois" : les avatars (assis autour, sur des chaises) reposent
+       sur cette zone, le feutre vert n'occupant que le centre de la table. */
+    background: linear-gradient(160deg, #8a5a30 0%, #6b4423 55%, #4a2d14 100%);
+    border-radius: 24px;
+    box-shadow: inset 0 0 50px rgba(0,0,0,0.45), 0 12px 30px rgba(0,0,0,0.5);
   }
   .felt {
     position: absolute;
-    inset: 0;
+    top: 140px; right: 130px; bottom: 150px; left: 130px;
+    border-radius: 18px;
     background: radial-gradient(circle at 50% 45%, #1f7a52 0%, #135a3c 55%, #0a3a26 100%);
-    box-shadow: inset 0 0 120px rgba(0,0,0,0.5);
+    box-shadow: inset 0 0 120px rgba(0,0,0,0.5), 0 4px 14px rgba(0,0,0,0.5);
   }
   .empty-hint {
     position: absolute;
