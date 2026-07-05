@@ -56,11 +56,12 @@ type Player struct {
 
 // engine détient l'état autoritaire et sérialise toutes les mutations.
 type engine struct {
-	mu     sync.Mutex
-	cards  []Card            // toutes les cartes (maître)
-	sabot  []string          // IDs empilés dans le sabot (fond -> sommet)
-	players map[string]*Player // userID -> Player (connectés)
-	zTop   int               // compteur d'ordre Z (croissant = devant)
+	mu        sync.Mutex
+	cards     []Card              // toutes les cartes (maître)
+	sabot     []string            // IDs empilés dans le sabot (fond -> sommet)
+	players   map[string]*Player  // userID -> Player (connectés)
+	nextSeat  int                 // compteur d'arrivée, jamais réutilisé (voir ensurePlayer)
+	zTop      int                 // compteur d'ordre Z (croissant = devant)
 }
 
 func newEngine() *engine {
@@ -71,14 +72,20 @@ func newEngine() *engine {
 
 // ensurePlayer ajoute le joueur s'il est nouveau et renvoie sa fiche. La
 // position de l'avatar est calculée autour de la table (répartie angulairement).
+//
+// Le siège utilise un compteur d'arrivée qui ne fait que croître (nextSeat),
+// jamais le nombre de joueurs actuellement connectés (len(e.players)) : sinon
+// un joueur qui se déconnecte puis se reconnecte reprend le même index qu'un
+// autre joueur toujours présent, et les deux avatars se superposent
+// exactement à l'écran (l'un masque totalement l'autre).
 func (e *engine) ensurePlayer(userID, name string, tableW, tableH float64) *Player {
 	if p, ok := e.players[userID]; ok {
 		p.Name = name
 		return p
 	}
-	n := len(e.players)
 	p := &Player{UserID: userID, Name: name}
-	e.layoutAvatar(p, n, tableW, tableH)
+	e.layoutAvatar(p, e.nextSeat, tableW, tableH)
+	e.nextSeat++
 	e.players[userID] = p
 	return p
 }

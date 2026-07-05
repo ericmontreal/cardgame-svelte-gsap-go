@@ -231,3 +231,19 @@ func TestEnsurePlayerAssignsDistinctPositions(t *testing.T) {
 		t.Fatal("le nom du joueur devrait être mis à jour")
 	}
 }
+
+func TestEnsurePlayerKeepsDistinctSeatAfterReconnect(t *testing.T) {
+	// Bug constaté en usage réel : après déconnexion puis reconnexion, un
+	// joueur reprenait le même siège qu'un autre joueur resté connecté (le
+	// siège dépendait de len(e.players), qui redescend au départ). Les deux
+	// avatars se superposaient alors exactement à l'écran.
+	e := newEngine()
+	e.ensurePlayer("u-alice", "alice", tableW, tableH)
+	pBob := e.ensurePlayer("u-bob", "bob", tableW, tableH)
+	e.removePlayer("u-alice") // alice se déconnecte ; bob reste seul
+
+	pAliceAgain := e.ensurePlayer("u-alice", "alice", tableW, tableH)
+	if pAliceAgain.AX == pBob.AX && pAliceAgain.AY == pBob.AY {
+		t.Fatalf("alice ne devrait pas reprendre le siège de bob après reconnexion: alice=%+v bob=%+v", pAliceAgain, pBob)
+	}
+}
