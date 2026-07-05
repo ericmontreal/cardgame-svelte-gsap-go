@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"math/rand"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -59,22 +60,23 @@ func faceIDOf(suit string, rank int) string {
 // ---- Config du menu init (cases à cocher) --------------------------------
 
 // DeckConfig décrit la composition du sabot demandée par le menu d'initialisation.
-// Toutes les options sontissues de cases à cocher côté client (§4).
+// Toutes les options sont issues de cases à cocher côté client (§4).
 type DeckConfig struct {
 	DeckCount int      `json:"deckCount"` // nombre de jeux (1, 2, ...)
 	Suits     []string `json:"suits"`     // sous-ensemble de {club,diamond,heart,spade}
-	FromRank  int      `json:"fromRank"`  // borne basse incluse (2..13)
-	ToRank    int      `json:"toRank"`    // borne haute incluse (2..13)
+	Ranks     []int    `json:"ranks"`     // sous-ensemble de rangs 1..13 (1=As, 11=Valet, 12=Dame, 13=Roi)
 	Jokers    string   `json:"jokers"`    // "none" | "black" | "red" | "both"
 }
+
+// allRanks énumère les 13 rangs possibles (1=As .. 13=Roi).
+var allRanks = []int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13}
 
 // DefaultDeckConfig offre un sabot classique (52 cartes) si rien n'est précisé.
 func DefaultDeckConfig() DeckConfig {
 	return DeckConfig{
 		DeckCount: 1,
 		Suits:     []string{"club", "diamond", "heart", "spade"},
-		FromRank:  1,
-		ToRank:    13,
+		Ranks:     append([]int(nil), allRanks...),
 		Jokers:    "none",
 	}
 }
@@ -103,16 +105,22 @@ func (c DeckConfig) Normalize() (DeckConfig, error) {
 		clean = suitOrder
 	}
 	c.Suits = clean
-	// Bornes de rangs : au moins 1 et au plus 13, from <= to.
-	if c.FromRank < 1 {
-		c.FromRank = 1
+	// Rangs : dédoublonnage + filtrage des valeurs hors 1..13 ; défaut = tous.
+	rankSet := make(map[int]bool, len(c.Ranks))
+	for _, r := range c.Ranks {
+		if r >= 1 && r <= 13 {
+			rankSet[r] = true
+		}
 	}
-	if c.ToRank > 13 {
-		c.ToRank = 13
+	ranks := make([]int, 0, len(rankSet))
+	for r := range rankSet {
+		ranks = append(ranks, r)
 	}
-	if c.FromRank > c.ToRank {
-		c.FromRank, c.ToRank = c.ToRank, c.FromRank
+	sort.Ints(ranks)
+	if len(ranks) == 0 {
+		ranks = append([]int(nil), allRanks...)
 	}
+	c.Ranks = ranks
 	// Jokers : valeur parmi celles attendues.
 	switch c.Jokers {
 	case "none", "black", "red", "both":
@@ -120,7 +128,7 @@ func (c DeckConfig) Normalize() (DeckConfig, error) {
 		c.Jokers = "none"
 	}
 	// Vérification finale : la config doit produire au moins une carte.
-	if c.DeckCount*len(c.Suits)*(c.ToRank-c.FromRank+1) == 0 {
+	if c.DeckCount*len(c.Suits)*len(c.Ranks) == 0 {
 		return c, fmt.Errorf("deck config ne produit aucune carte")
 	}
 	return c, nil
@@ -152,7 +160,7 @@ func BuildDeck(cfg DeckConfig) ([]Card, error) {
 	id := 0
 	for d := 0; d < cfg.DeckCount; d++ {
 		for _, suit := range cfg.Suits {
-			for r := cfg.FromRank; r <= cfg.ToRank; r++ {
+			for _, r := range cfg.Ranks {
 				out = append(out, Card{
 					ID:     fmt.Sprintf("c-%d", id),
 					FaceID: faceIDOf(suit, r),

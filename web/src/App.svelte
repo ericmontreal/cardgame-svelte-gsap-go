@@ -106,6 +106,13 @@
   }
   function sendChat(text) { ws?.sendChat(text) }
 
+  // ---- Nouvelle partie : réaffiche le menu de config (§ menu init à chaque
+  // nouvelle partie). La session/connexion WS reste active ; seul le sabot
+  // sera remplacé au prochain "Ouvrir la table".
+  function newGame() {
+    step = 'init'
+  }
+
   // ---- Déconnexion ----
   function logout() {
     disconnectWs()
@@ -145,6 +152,7 @@
         <span class="brand">🃏 Table de cartes</span>
         <span class="me">Connecté en tant que <b>{session.name}</b></span>
         <span class="status" data-s={$wsStatus}>● {statusLabel}</span>
+        <button class="newgame" on:click={newGame}>Nouvelle partie</button>
         <button class="logout" on:click={logout}>Déconnexion</button>
       </header>
 
@@ -197,11 +205,11 @@
   .status[data-s="open"] { color: #6fe39a; }
   .status[data-s="connecting"], .status[data-s="reconnecting"] { color: #ffd27a; }
   .status[data-s="closed"], .status[data-s="error"], .status[data-s="idle"] { color: #ff9a9a; }
-  .logout {
+  .newgame, .logout {
     border: 1px solid rgba(255,255,255,0.2); background: transparent; color: #eef;
     padding: .35rem .7rem; border-radius: 7px; cursor: pointer; font-size: .85rem;
   }
-  .logout:hover { background: rgba(255,255,255,0.1); }
+  .newgame:hover, .logout:hover { background: rgba(255,255,255,0.1); }
 
   .body { display: grid; grid-template-columns: 1fr auto; min-height: 0; }
 </style>

@@ -47,8 +47,7 @@ func TestBuildDeckPartialSuits(t *testing.T) {
 	cfg := DeckConfig{
 		DeckCount: 1,
 		Suits:     []string{"heart", "spade"},
-		FromRank:  2,
-		ToRank:    13,
+		Ranks:     []int{2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13},
 		Jokers:    "none",
 	}
 	cards, err := BuildDeck(cfg)
@@ -102,9 +101,9 @@ func TestBuildDeckMultipleDecks(t *testing.T) {
 func TestNormalizeIsPermissiveButSane(t *testing.T) {
 	// Normalize est volontairement permissive : une config dégénérée retombe
 	// sur des valeurs saines (défauts) plutôt que d'échouer. On vérifie ici que
-	// les bornes inversées sont remises dans l'ordre et qu'aucune couleur
-	// valide ne se perd.
-	cfg := DeckConfig{DeckCount: 0, Suits: nil, FromRank: 5, ToRank: 2}
+	// les rangs invalides/en double sont nettoyés et qu'aucune couleur valide
+	// ne se perd.
+	cfg := DeckConfig{DeckCount: 0, Suits: nil, Ranks: []int{5, 5, 2, 99, -1, 0}}
 	n, err := cfg.Normalize()
 	if err != nil {
 		t.Fatalf("Normalize ne devrait pas échouer sur une config dégénérée: %v", err)
@@ -112,11 +111,17 @@ func TestNormalizeIsPermissiveButSane(t *testing.T) {
 	if n.DeckCount < 1 {
 		t.Fatal("DeckCount devrait être clampé à >= 1")
 	}
-	if n.FromRank > n.ToRank {
-		t.Fatal("les bornes inversées devraient être réordonnées")
-	}
 	if len(n.Suits) == 0 {
 		t.Fatal("les couleurs devraient retomber sur les 4 par défaut")
+	}
+	want := []int{2, 5}
+	if len(n.Ranks) != len(want) {
+		t.Fatalf("rangs invalides/doublons non nettoyés: %v", n.Ranks)
+	}
+	for i, r := range want {
+		if n.Ranks[i] != r {
+			t.Fatalf("rangs attendus %v, obtenu %v", want, n.Ranks)
+		}
 	}
 	// La config normalisée doit produire au moins une carte.
 	cards, err := BuildDeck(n)

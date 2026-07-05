@@ -27,6 +27,30 @@ export function clearSession() {
   localStorage.removeItem(SESSION_KEY)
 }
 
+// ---- Configuration du sabot (persistance locale du menu init) ------------
+//
+// Conservée entre les parties (§ menu init affiché à chaque nouvelle partie)
+// tant que l'utilisateur ne clique pas sur "Réinitialiser".
+
+const DECK_CONFIG_KEY = 'cardgame.deckConfig'
+
+export function loadDeckConfig() {
+  try {
+    const raw = localStorage.getItem(DECK_CONFIG_KEY)
+    if (!raw) return null
+    return JSON.parse(raw)
+  } catch {}
+  return null
+}
+
+export function saveDeckConfig(cfg) {
+  localStorage.setItem(DECK_CONFIG_KEY, JSON.stringify(cfg))
+}
+
+export function clearDeckConfig() {
+  localStorage.removeItem(DECK_CONFIG_KEY)
+}
+
 // ---- Auth : POST /api/login ----------------------------------------------
 
 export async function login(username, password) {
