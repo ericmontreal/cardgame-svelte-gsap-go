@@ -204,7 +204,8 @@ func main() {
 		sessions: newSessionManager(),
 	}
 
-	http.HandleFunc("/api/login", loginHandler(app.users, app.sessions))
+	loginLimiter := newLoginRateLimiter(5, time.Minute)
+	http.HandleFunc("/api/login", loginHandler(app.users, app.sessions, loginLimiter))
 	http.HandleFunc("/api/health", healthHandler)
 	http.HandleFunc("/ws", app.wsHandler)
 

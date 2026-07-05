@@ -165,8 +165,9 @@ func (app *application) handleClientMsg(c *client, room string, m Message) {
 		app.engine.mu.Lock()
 		ok := app.engine.Rotate(p.CardID, p.Rotate)
 		app.engine.mu.Unlock()
-		_ = ok
-		app.broadcastState(room)
+		if ok {
+			app.broadcastState(room)
+		}
 
 	case "move":
 		// Drag terminé : repositionnement d'une carte de table.

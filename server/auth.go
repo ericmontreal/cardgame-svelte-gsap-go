@@ -131,6 +131,60 @@ func (sm *sessionManager) lookup(token string) (string, bool) {
 	return id, ok
 }
 
+// ---- Rate limiting anti-bruteforce -----------------------------------------
+
+// loginRateLimiter limite le nombre de tentatives de connexion par IP, via une
+// fenêtre glissante. Protège /api/login contre le bruteforce de mots de passe.
+type loginRateLimiter struct {
+	mu       sync.Mutex
+	attempts map[string][]time.Time
+	max      int
+	window   time.Duration
+}
+
+func newLoginRateLimiter(max int, window time.Duration) *loginRateLimiter {
+	return &loginRateLimiter{
+		attempts: map[string][]time.Time{},
+		max:      max,
+		window:   window,
+	}
+}
+
+// allow enregistre une tentative pour ip et renvoie false si la limite (max
+// tentatives par fenêtre glissante) est dépassée.
+func (l *loginRateLimiter) allow(ip string) bool {
+	now := time.Now()
+	cutoff := now.Add(-l.window)
+
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	kept := l.attempts[ip][:0]
+	for _, t := range l.attempts[ip] {
+		if t.After(cutoff) {
+			kept = append(kept, t)
+		}
+	}
+	if len(kept) >= l.max {
+		l.attempts[ip] = kept
+		return false
+	}
+	l.attempts[ip] = append(kept, now)
+	return true
+}
+
+// clientIP extrait l'adresse IP de la requête (sans le port). On se base sur
+// RemoteAddr uniquement : un en-tête comme X-Forwarded-For est librement
+// falsifiable par le client et permettrait de contourner la limite par IP
+// tant qu'aucun proxy de confiance n'est configuré en amont.
+func clientIP(r *http.Request) string {
+	host := r.RemoteAddr
+	if i := strings.LastIndex(host, ":"); i != -1 {
+		host = host[:i]
+	}
+	return host
+}
+
 // ---- HTTP /api/login ------------------------------------------------------
 
 // loginRequest est le corps attendu pour POST /api/login.
@@ -146,11 +200,16 @@ type loginResponse struct {
 	Name  string `json:"name"`
 }
 
-// loginHandler valide identifiant + mot de passe et crée une session.
-func loginHandler(users UserStore, sessions *sessionManager) http.HandlerFunc {
+// loginHandler valide identifiant + mot de passe et crée une session. limiter
+// borne le nombre de tentatives par IP (anti-bruteforce).
+func loginHandler(users UserStore, sessions *sessionManager, limiter *loginRateLimiter) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		if !limiter.allow(clientIP(r)) {
+			http.Error(w, `{"error":"too many attempts"}`, http.StatusTooManyRequests)
 			return
 		}
 		var req loginRequest
@@ -180,12 +239,17 @@ func loginHandler(users UserStore, sessions *sessionManager) http.HandlerFunc {
 // (bcrypt) puis stockés. Conforme au §10 : comptes préenregistrés, aucune
 // création dynamique.
 //
-// En l'absence de USERS_SEED, on crée deux comptes de démon pour permettre de
-// tester l'application immédiatement. Un warning est émis en log.
+// Le jeu est réservé à un groupe fermé (famille/amis) : USERS_SEED est donc
+// obligatoire. En son absence, le serveur refuse de démarrer, sauf si
+// ALLOW_DEMO_USERS=1 est explicitement défini, auquel cas deux comptes de
+// démo (alice/bob) sont créés comme avant, pour faciliter les tests locaux.
 func bootstrapUsers(store *inMemoryUserStore) {
 	raw := strings.TrimSpace(os.Getenv("USERS_SEED"))
 	if raw == "" {
-		log.Println("ATTENTION: USERS_SEED non défini — création de comptes de démon (alice/secret, bob/secret).")
+		if os.Getenv("ALLOW_DEMO_USERS") != "1" {
+			log.Fatal("USERS_SEED non défini. Définissez USERS_SEED (\"name:password,...\") ou, pour un usage de test uniquement, ALLOW_DEMO_USERS=1.")
+		}
+		log.Println("ATTENTION: USERS_SEED non défini — création de comptes de démon (alice/secret, bob/secret) car ALLOW_DEMO_USERS=1.")
 		raw = "alice:secret,bob:secret"
 	}
 	for i, entry := range strings.Split(raw, ",") {
