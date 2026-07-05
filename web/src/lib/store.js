@@ -96,6 +96,7 @@ export function resetLocal() {
   myHand.set([])
   chatLog.set([])
   wsStatus.set('idle')
+  liveDrag.set(null)
 }
 
 // ---- Helpers de mise à jour réactive ------------------------------------
@@ -108,6 +109,11 @@ export function applyState(payload) {
     table: Array.isArray(payload.table) ? payload.table : [],
     players: Array.isArray(payload.players) ? payload.players : [],
   })
+  // Un snapshot autoritaire fait toujours foi : on efface toute position de
+  // drag "live" résiduelle, sinon une carte reste figée à sa dernière
+  // position de survol une fois le glissement terminé (jamais réinitialisée
+  // sinon), désynchronisée du véritable état serveur pour les autres clients.
+  liveDrag.set(null)
 }
 
 // Applique un message "hand" (main privée du joueur courant).
