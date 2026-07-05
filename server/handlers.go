@@ -94,6 +94,19 @@ func (app *application) sendHand(room, userID string) {
 	}
 }
 
+// notifyHandChanges envoie une main privée à jour à chaque joueur impacté par
+// un TransferResult (destinataire qui en gagne une, propriétaire précédent qui
+// en perd une). Sans ce second envoi, une carte sortie d'une main restait
+// affichée chez son ancien propriétaire jusqu'au prochain rafraîchissement.
+func (app *application) notifyHandChanges(room string, res TransferResult) {
+	if res.HandOwner != "" {
+		app.sendHand(room, res.HandOwner)
+	}
+	if res.FromHandOwner != "" && res.FromHandOwner != res.HandOwner {
+		app.sendHand(room, res.FromHandOwner)
+	}
+}
+
 // sendPresence diffuse la liste des joueurs connectés (join/leave). On réutilise
 // l'état public pour rester cohérent.
 func (app *application) sendPresence(room string) {
@@ -203,9 +216,7 @@ func (app *application) handleClientMsg(c *client, room string, m Message) {
 		if res.PublicChanged {
 			app.broadcastState(room)
 		}
-		if res.HandOwner != "" {
-			app.sendHand(room, res.HandOwner)
-		}
+		app.notifyHandChanges(room, res)
 
 	case "sabotDraw":
 		// Drag du sabot (§6) : tire le sommet vers une cible.
@@ -226,9 +237,7 @@ func (app *application) handleClientMsg(c *client, room string, m Message) {
 		if res.PublicChanged {
 			app.broadcastState(room)
 		}
-		if res.HandOwner != "" {
-			app.sendHand(room, res.HandOwner)
-		}
+		app.notifyHandChanges(room, res)
 
 	case "chat":
 		var p payloadChat

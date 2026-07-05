@@ -221,11 +221,20 @@ type Transfer struct {
 type TransferResult struct {
 	PublicChanged bool   // l'état public (table/sabot) a changé -> broadcast
 	HandOwner     string // une carte est entrée dans la main de ce joueur (notif ciblée)
+	FromHandOwner string // une carte est sortie de la main de ce joueur (notif ciblée)
 }
 
 // applyTransfer réalise le transfert d'une carte déjà identifiée vers une cible.
 // fromZone = zone de la carte AVANT l'opération. Retourne le résultat de diff.
 func (e *engine) applyTransfer(c *Card, fromZone Zone, t Transfer) TransferResult {
+	// Propriétaire AVANT mutation : non vide seulement si la carte venait
+	// d'une main (fromZone == ZoneHand). Permet de notifier ce joueur que sa
+	// main a perdu une carte, quelle que soit la destination (sinon la carte
+	// restait affichée dans sa main jusqu'au prochain rafraîchissement).
+	prevHandOwner := ""
+	if fromZone == ZoneHand {
+		prevHandOwner = c.Owner
+	}
 	switch t.Target {
 	case TargetTable:
 		// hand→table ou table→table : pose à la position de relâchement (§6).
@@ -234,7 +243,7 @@ func (e *engine) applyTransfer(c *Card, fromZone Zone, t Transfer) TransferResul
 		c.X, c.Y = t.X, t.Y
 		c.FaceUp = true // une carte posée sur le tapis est visible (comportement table physique)
 		c.Z = e.nextZ()
-		return TransferResult{PublicChanged: true}
+		return TransferResult{PublicChanged: true, FromHandOwner: prevHandOwner}
 
 	case TargetSabot:
 		// table→sabot : remise dans la shoe, face cachée, au sommet.
@@ -245,7 +254,7 @@ func (e *engine) applyTransfer(c *Card, fromZone Zone, t Transfer) TransferResul
 		c.Rotate = 0
 		c.Z = 0
 		e.sabot = append(e.sabot, c.ID)
-		return TransferResult{PublicChanged: true}
+		return TransferResult{PublicChanged: true, FromHandOwner: prevHandOwner}
 
 	case TargetAvatar, TargetHand:
 		// table→avatar / hand→hand / hand→avatar : carte vers la main privée.
@@ -261,6 +270,7 @@ func (e *engine) applyTransfer(c *Card, fromZone Zone, t Transfer) TransferResul
 		return TransferResult{
 			PublicChanged: fromZone.public(), // si elle venait de la table/sabot, le public change
 			HandOwner:     t.OwnerID,
+			FromHandOwner: prevHandOwner,
 		}
 	}
 	return TransferResult{}

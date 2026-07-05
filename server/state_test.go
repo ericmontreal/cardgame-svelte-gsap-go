@@ -144,9 +144,20 @@ func TestTransferHandToTableAtDropPosition(t *testing.T) {
 	if !res.PublicChanged {
 		t.Fatal("le transfert main->table devrait changer l'état public")
 	}
+	// Alice doit être notifiée que sa main a perdu cette carte, sinon elle
+	// reste affichée dans sa main tant qu'aucun autre événement ne la
+	// rafraîchit (bug constaté en usage réel).
+	if res.FromHandOwner != "u-alice" {
+		t.Fatalf("FromHandOwner devrait valoir u-alice, got %q", res.FromHandOwner)
+	}
 	c := e.findCard(id)
 	if c == nil || c.Zone != ZoneTable || c.X != 123 || c.Y != 456 {
 		t.Fatalf("la carte devrait être sur la table à (123,456), got %+v", c)
+	}
+	// La main d'alice doit désormais être vide.
+	h := e.snapshotHand("u-alice")
+	if len(h.Cards) != 0 {
+		t.Fatalf("la main d'alice devrait être vide après le transfert, got %+v", h.Cards)
 	}
 }
 
