@@ -70,8 +70,8 @@ func TestFlipTogglesFace(t *testing.T) {
 		t.Fatal("DrawSabot aurait dû tirer une carte")
 	}
 	c := e.findCard(id)
-	if c == nil || !c.FaceUp {
-		t.Fatal("une carte tirée sur la table devrait être face visible")
+	if c == nil || c.FaceUp {
+		t.Fatal("une carte tirée du sabot directement sur la table devrait rester face cachée")
 	}
 	ok, handOwner := e.Flip(id)
 	if !ok {
@@ -80,8 +80,8 @@ func TestFlipTogglesFace(t *testing.T) {
 	if handOwner != "" {
 		t.Fatalf("une carte de table ne devrait pas avoir de handOwner, got %q", handOwner)
 	}
-	if e.findCard(id).FaceUp {
-		t.Fatal("la carte devrait être face cachée après flip")
+	if !e.findCard(id).FaceUp {
+		t.Fatal("la carte devrait être face visible après flip")
 	}
 }
 
@@ -183,12 +183,16 @@ func TestTransferHandToTableAtDropPosition(t *testing.T) {
 
 func TestTransferPreservesFaceState(t *testing.T) {
 	// Un simple déplacement (drag) ne doit jamais changer l'état face d'une
-	// carte : seule une distribution depuis le sabot (DrawSabot) la révèle.
+	// carte : seule une distribution depuis le sabot VERS UNE MAIN (DrawSabot,
+	// TargetAvatar/TargetHand) la révèle ; un dépôt sur la table ne révèle
+	// jamais, qu'il vienne d'un DnD manuel ou d'un tirage direct sabot→table.
 	// Un joueur doit pouvoir retourner une carte de sa main avant de la poser
 	// sur le tapis, et ce choix doit être respecté.
 	e := newEngineWithCards(t, 1)
-	id, _ := e.DrawSabot(Transfer{Target: TargetTable, X: 0, Y: 0}) // dealt=true -> face visible
-	e.TransferCard(Transfer{CardID: id, Target: TargetAvatar, OwnerID: "u-alice"})
+	id, _ := e.DrawSabot(Transfer{Target: TargetAvatar, OwnerID: "u-alice"}) // dealt=true -> face visible
+	if !e.findCard(id).FaceUp {
+		t.Fatal("une carte distribuée dans une main devrait être face visible")
+	}
 	if ok, _ := e.Flip(id); !ok { // alice retourne la carte face cachée dans sa main
 		t.Fatal("Flip aurait dû réussir")
 	}
@@ -201,14 +205,15 @@ func TestTransferPreservesFaceState(t *testing.T) {
 	}
 }
 
-func TestDrawSabotAlwaysRevealsCard(t *testing.T) {
-	// Contre-épreuve : une véritable distribution (tirage du sabot) doit
-	// toujours révéler la carte dans sa nouvelle zone, contrairement à un
-	// simple déplacement.
+func TestDrawSabotRevealsOnlyWhenGivenToAPlayer(t *testing.T) {
+	// Une carte n'est révélée que lorsqu'elle est donnée à un joueur (avatar/
+	// main), jamais lors d'un simple dépôt sur la table : un tirage direct du
+	// sabot vers le tapis doit rester face cachée (comme un vrai jeu où l'on
+	// ne retourne pas automatiquement les cartes posées).
 	e := newEngineWithCards(t, 2)
 	idTable, _ := e.DrawSabot(Transfer{Target: TargetTable, X: 0, Y: 0})
-	if !e.findCard(idTable).FaceUp {
-		t.Fatal("une carte distribuée sur la table devrait être face visible")
+	if e.findCard(idTable).FaceUp {
+		t.Fatal("une carte tirée du sabot directement sur la table devrait rester face cachée")
 	}
 	idHand, _ := e.DrawSabot(Transfer{Target: TargetAvatar, OwnerID: "u-bob"})
 	if !e.findCard(idHand).FaceUp {

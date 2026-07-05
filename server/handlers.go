@@ -12,7 +12,7 @@ import (
 // logique du tapis.
 const (
 	tableW = 1160.0
-	tableH = 760.0
+	tableH = 800.0
 )
 
 // ---- Payloads clients -----------------------------------------------------

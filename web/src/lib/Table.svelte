@@ -20,9 +20,9 @@
   let tableEl
   let tableRect = null
   // Position fixe du sabot sur le tapis (zone de design), centrée sur le
-  // feutre (table 1160x760, carte de sabot 92x128 par défaut). Le joueur peut
+  // feutre (table 1160x800, carte de sabot 92x128 par défaut). Le joueur peut
   // le déplacer en le glissant, mais son emplacement par défaut est stable.
-  const SABOT_POS = { x: 534, y: 316 }
+  const SABOT_POS = { x: 534, y: 336 }
 
   function refreshRect() {
     if (tableEl) tableRect = tableEl.getBoundingClientRect()
@@ -173,7 +173,7 @@
   .table {
     position: relative;
     width: 1160px;
-    min-height: 760px;
+    min-height: 800px;
     margin: 0 auto;
     /* pourtour "bois" : les avatars (assis autour, sur des chaises) reposent
        sur cette zone, le feutre vert n'occupant que le centre de la table.

@@ -99,13 +99,14 @@ func (e *engine) layoutAvatar(p *Player, index int, w, h float64) {
 		h = 500
 	}
 	const seats = 6
-	// Les avatars ("chaises") sont disposés près du pourtour bois de la
-	// table (§7), autour du feutre vert plus petit et centré. L'amplitude
-	// reste cependant bornée par la hauteur totale de la table (w,h) : un
-	// siège dont le centre + la moitié de sa hauteur dépasserait h sortirait
-	// complètement de la zone défilable (perdu, pas seulement hors champ).
+	// Les avatars ("chaises") reposent majoritairement sur le pourtour bois
+	// de la table (§7), et ne mordent que légèrement sur le feutre vert, pour
+	// laisser un maximum d'espace de jeu. L'amplitude reste bornée par la
+	// hauteur totale de la table (w,h) : un siège dont le centre + la moitié
+	// de sa hauteur dépasserait h sortirait complètement de la zone
+	// défilable (perdu, pas seulement hors champ).
 	cx, cy := w/2, h/2
-	rx, ry := w*0.43, h*0.36
+	rx, ry := w*0.515, h*0.431
 	// Angle décalé pour que le siège 0 soit en bas (sud), face à la table.
 	a := float64(index%seats)*(2*math.Pi/seats) + math.Pi/2
 	p.AX = cx + rx*math.Cos(a)
@@ -239,11 +240,15 @@ type TransferResult struct {
 
 // applyTransfer réalise le transfert d'une carte déjà identifiée vers une cible.
 // fromZone = zone de la carte AVANT l'opération. dealt indique une véritable
-// distribution (tirage depuis le sabot, cf. DrawSabot) : seul ce cas révèle la
-// carte dans sa nouvelle zone. Un simple déplacement (drag main→tapis,
-// tapis→main d'un autre joueur, etc. via TransferCard) ne doit JAMAIS changer
-// l'état face d'une carte : un joueur peut avoir choisi de retourner une carte
-// de sa main avant de la poser, ce choix doit être respecté.
+// distribution (tirage depuis le sabot vers une main, cf. DrawSabot) : seul ce
+// cas révèle la carte. Un dépôt sur la TABLE ne révèle jamais la carte, qu'il
+// s'agisse d'un simple déplacement ou d'un tirage direct sabot→tapis (une
+// carte n'est révélée que lorsqu'elle est donnée à un joueur, jamais posée
+// face visible sur le tapis automatiquement). Un simple déplacement (drag
+// main→tapis, tapis→main d'un autre joueur, etc. via TransferCard) ne doit
+// JAMAIS changer l'état face d'une carte : un joueur peut avoir choisi de
+// retourner une carte de sa main avant de la poser, ce choix doit être
+// respecté.
 func (e *engine) applyTransfer(c *Card, fromZone Zone, t Transfer, dealt bool) TransferResult {
 	// Propriétaire AVANT mutation : non vide seulement si la carte venait
 	// d'une main (fromZone == ZoneHand). Permet de notifier ce joueur que sa
@@ -255,13 +260,11 @@ func (e *engine) applyTransfer(c *Card, fromZone Zone, t Transfer, dealt bool) T
 	}
 	switch t.Target {
 	case TargetTable:
-		// hand→table ou table→table : pose à la position de relâchement (§6).
+		// hand→table, table→table ou sabot→table : pose à la position de
+		// relâchement (§6), jamais révélée automatiquement.
 		c.Zone = ZoneTable
 		c.Owner = ""
 		c.X, c.Y = t.X, t.Y
-		if dealt {
-			c.FaceUp = true // distribution depuis le sabot : révélée (comportement table physique)
-		}
 		c.Z = e.nextZ()
 		return TransferResult{PublicChanged: true, FromHandOwner: prevHandOwner}
 
