@@ -102,6 +102,22 @@ func (h *hub) sendTo(c *client, data []byte) {
 	}
 }
 
+// countUser renvoie le nombre de connexions actives d'un userID dans une room.
+// Un même compte peut avoir plusieurs connexions simultanées (plusieurs
+// onglets/fenêtres) ; on ne doit retirer son avatar du jeu qu'à la fermeture
+// de la toute dernière (voir removePlayer dans main.go).
+func (h *hub) countUser(room, userID string) int {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	n := 0
+	for c := range h.rooms[room] {
+		if c.userID == userID {
+			n++
+		}
+	}
+	return n
+}
+
 // clients renvoie une capture des clients d'une room (pour itérer hors-lock).
 func (h *hub) clients(room string) []*client {
 	h.mu.RLock()

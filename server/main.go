@@ -180,9 +180,14 @@ func (app *application) wsHandler(w http.ResponseWriter, r *http.Request) {
 	close(cli.send)
 	_ = conn.Close()
 
-	app.engine.mu.Lock()
-	app.engine.removePlayer(u.ID)
-	app.engine.mu.Unlock()
+	// Ne retire l'avatar du joueur que si plus aucune connexion (autre onglet
+	// / fenêtre) ne subsiste pour ce compte, sinon la fermeture d'un onglet
+	// ferait disparaître l'avatar d'une session encore active du même joueur.
+	if app.hub.countUser(room, u.ID) == 0 {
+		app.engine.mu.Lock()
+		app.engine.removePlayer(u.ID)
+		app.engine.mu.Unlock()
+	}
 	app.sendPresence(room)
 
 	log.Printf("client %s (%s) left room %s\n", cli.id, cli.name, room)

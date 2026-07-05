@@ -92,8 +92,14 @@ func (e *engine) layoutAvatar(p *Player, index int, w, h float64) {
 		h = 500
 	}
 	const seats = 6
-	cx, cy := w/2, h/2
-	rx, ry := w*0.42, h*0.42
+	// Amplitude verticale volontairement réduite (0.25 au lieu de 0.42) et
+	// centre remonté : la zone .table-scroll visible à l'écran (limitée par
+	// l'en-tête et la bande de main) est souvent nettement plus basse que la
+	// hauteur logique de la table (§7), donc un siège trop proche du bord bas
+	// (notamment le siège 0/sud, le plus proche de la position du joueur)
+	// tombait hors du cadre visible sans défilement.
+	cx, cy := w/2, h*0.35
+	rx, ry := w*0.42, h*0.25
 	// Angle décalé pour que le siège 0 soit en bas (sud), face à la table.
 	a := float64(index%seats)*(2*math.Pi/seats) + math.Pi/2
 	p.AX = cx + rx*math.Cos(a)

@@ -5,13 +5,21 @@
 
 import { writable } from 'svelte/store'
 
-// ---- Session utilisateur (persistance locale du token) -------------------
+// ---- Session utilisateur (persistance par onglet du token) ---------------
+//
+// sessionStorage (et non localStorage) : chaque onglet/fenêtre gère sa propre
+// session. Avec localStorage, ouvrir une deuxième fenêtre pour tester un
+// second joueur reprenait automatiquement le compte de la première (stockage
+// partagé entre tous les onglets d'un même navigateur), obligeant à se
+// déconnecter manuellement pour changer de compte — et pire, deux connexions
+// WS simultanées sous le même compte, dont la fermeture de l'une supprimait
+// l'avatar de l'autre côté serveur (§ voir hub.go/countUser).
 
 const SESSION_KEY = 'cardgame.session'
 
 export function loadSession() {
   try {
-    const raw = localStorage.getItem(SESSION_KEY)
+    const raw = sessionStorage.getItem(SESSION_KEY)
     if (!raw) return null
     const s = JSON.parse(raw)
     if (s && s.token && s.id && s.name) return s
@@ -20,11 +28,11 @@ export function loadSession() {
 }
 
 export function saveSession(s) {
-  localStorage.setItem(SESSION_KEY, JSON.stringify(s))
+  sessionStorage.setItem(SESSION_KEY, JSON.stringify(s))
 }
 
 export function clearSession() {
-  localStorage.removeItem(SESSION_KEY)
+  sessionStorage.removeItem(SESSION_KEY)
 }
 
 // ---- Configuration du sabot (persistance locale du menu init) ------------
