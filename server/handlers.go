@@ -11,8 +11,8 @@ import (
 // avatars autour de la table côté serveur. Le client les utilise comme taille
 // logique du tapis.
 const (
-	tableW = 1000.0
-	tableH = 640.0
+	tableW = 1160.0
+	tableH = 760.0
 )
 
 // ---- Payloads clients -----------------------------------------------------
@@ -176,10 +176,16 @@ func (app *application) handleClientMsg(c *client, room string, m Message) {
 		var p payloadCardOp
 		_ = json.Unmarshal(m.Payload, &p)
 		app.engine.mu.Lock()
-		ok := app.engine.Flip(p.CardID)
+		ok, handOwner := app.engine.Flip(p.CardID)
 		app.engine.mu.Unlock()
 		if ok {
 			app.broadcastState(room)
+			// Une carte en main ne fait jamais partie de l'état public
+			// (snapshotPublic l'exclut) : sans cet envoi ciblé, son
+			// propriétaire ne voyait jamais le résultat de son propre flip.
+			if handOwner != "" {
+				app.sendHand(room, handOwner)
+			}
 		}
 
 	case "front":

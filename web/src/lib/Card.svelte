@@ -81,9 +81,16 @@
     startY = e.clientY
     originX = c.x
     originY = c.y
+    // Capturer dès pointerdown (et pas seulement après le seuil de 3px, cf.
+    // onPointerMove) : sinon un mouvement rapide/ample peut sortir le
+    // curseur de la petite carte avant que la capture ne s'engage, et les
+    // pointermove suivants ne lui parviennent plus jamais (drag cassé). Ceci
+    // n'affecte plus le clic/double-clic : ils sont détectés manuellement
+    // dans onPointerUp plutôt que via les événements natifs click/dblclick,
+    // peu fiables sur un <use> SVG référencé sous Chromium.
     e.currentTarget.setPointerCapture(e.pointerId)
-    dispatch('dragstart', { cardId: c.id })
     e.preventDefault()
+    dispatch('dragstart', { cardId: c.id })
   }
 
   function onPointerMove(e) {
@@ -104,6 +111,15 @@
     }
   }
 
+  // ---- Clic / double-clic (détection manuelle, cf. onPointerUp) ----
+  // dbl-clic = flip (§6). clic simple sans drag = premier plan (§6). On ne
+  // s'appuie PAS sur les événements natifs click/dblclick : sur Chromium, un
+  // <use> SVG référencé via href ne les synthétise pas de façon fiable après
+  // un pointerdown/pointerup (constaté y compris cibles down/up identiques),
+  // ce qui cassait silencieusement le flip et la mise au premier plan.
+  let lastClickAt = 0
+  const DBLCLICK_MS = 350
+
   function onPointerUp(e) {
     if (!dragging) return
     dragging = false
@@ -112,24 +128,18 @@
     // (c.x, c.y) une fois l'état confirmé par le serveur reçu.
     if (rootEl) gsap.set(rootEl, { x: 0, y: 0 })
     if (!moved) {
-      // Pas de déplacement : c'est un clic -> "dragend without move" laisse
-      // le parent (on:dblclick) gérer le flip / le clic = front.
       dispatch('dragend', { cardId: c.id, moved: false, clientX: e.clientX, clientY: e.clientY })
+      const now = Date.now()
+      if (now - lastClickAt < DBLCLICK_MS) {
+        lastClickAt = 0
+        dispatch('flip', { cardId: c.id })
+      } else {
+        lastClickAt = now
+        if (zone === 'table') dispatch('front', { cardId: c.id })
+      }
       return
     }
     dispatch('drop', { cardId: c.id, zone, clientX: e.clientX, clientY: e.clientY })
-  }
-
-  // ---- Clic / double-clic ----
-  // dbl-clic = flip (§6). clic simple sans drag = premier plan (§6 "repositionnement Z").
-  function onDblClick(e) {
-    e.stopPropagation()
-    dispatch('flip', { cardId: c.id })
-  }
-  function onClick() {
-    // Le clic simple n'a d'effet que s'il n'y a pas eu de drag.
-    if (moved) return
-    if (zone === 'table') dispatch('front', { cardId: c.id })
   }
 
   // ---- Accessibilité clavier (flip) ----
@@ -163,8 +173,6 @@
     on:pointermove={onPointerMove}
     on:pointerup={onPointerUp}
     on:pointercancel={onPointerUp}
-    on:dblclick={onDblClick}
-    on:click={onClick}
     on:keydown={onKey}
   >
     <use bind:this={useEl}></use>

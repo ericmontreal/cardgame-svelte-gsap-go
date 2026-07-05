@@ -20,9 +20,9 @@
   let tableEl
   let tableRect = null
   // Position fixe du sabot sur le tapis (zone de design), centrée sur le
-  // feutre (table 1000x640, carte de sabot 92x128 par défaut). Le joueur peut
+  // feutre (table 1160x760, carte de sabot 92x128 par défaut). Le joueur peut
   // le déplacer en le glissant, mais son emplacement par défaut est stable.
-  const SABOT_POS = { x: 454, y: 256 }
+  const SABOT_POS = { x: 534, y: 316 }
 
   function refreshRect() {
     if (tableEl) tableRect = tableEl.getBoundingClientRect()
@@ -172,18 +172,20 @@
   }
   .table {
     position: relative;
-    width: 1000px;
-    min-height: 640px;
+    width: 1160px;
+    min-height: 760px;
     margin: 0 auto;
     /* pourtour "bois" : les avatars (assis autour, sur des chaises) reposent
-       sur cette zone, le feutre vert n'occupant que le centre de la table. */
+       sur cette zone, le feutre vert n'occupant que le centre de la table.
+       Largeur du pourtour ~ largeur du badge joueur (64px, cf. Avatar.svelte
+       --size), pour que la zone bois serve juste à accueillir les avatars. */
     background: linear-gradient(160deg, #8a5a30 0%, #6b4423 55%, #4a2d14 100%);
     border-radius: 24px;
     box-shadow: inset 0 0 50px rgba(0,0,0,0.45), 0 12px 30px rgba(0,0,0,0.5);
   }
   .felt {
     position: absolute;
-    top: 140px; right: 130px; bottom: 150px; left: 130px;
+    inset: 80px;
     border-radius: 18px;
     background: radial-gradient(circle at 50% 45%, #1f7a52 0%, #135a3c 55%, #0a3a26 100%);
     box-shadow: inset 0 0 120px rgba(0,0,0,0.5), 0 4px 14px rgba(0,0,0,0.5);

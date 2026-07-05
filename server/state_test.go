@@ -73,8 +73,12 @@ func TestFlipTogglesFace(t *testing.T) {
 	if c == nil || !c.FaceUp {
 		t.Fatal("une carte tirée sur la table devrait être face visible")
 	}
-	if !e.Flip(id) {
+	ok, handOwner := e.Flip(id)
+	if !ok {
 		t.Fatal("Flip aurait dû réussir")
+	}
+	if handOwner != "" {
+		t.Fatalf("une carte de table ne devrait pas avoir de handOwner, got %q", handOwner)
 	}
 	if e.findCard(id).FaceUp {
 		t.Fatal("la carte devrait être face cachée après flip")
@@ -85,8 +89,24 @@ func TestFlipRejectedOnSabot(t *testing.T) {
 	// Une carte restée dans le sabot ne peut pas être retournée directement.
 	e := newEngineWithCards(t, 2)
 	id := e.sabot[0]
-	if e.Flip(id) {
+	if ok, _ := e.Flip(id); ok {
 		t.Fatal("Flip sur une carte de sabot devrait échouer")
+	}
+}
+
+func TestFlipOnHandCardReportsOwner(t *testing.T) {
+	// Une carte retournée dans une main privée n'apparaît jamais dans l'état
+	// public (snapshotPublic l'exclut) : Flip doit donc signaler le
+	// propriétaire à notifier directement, sinon il ne voit jamais le
+	// résultat de son propre flip.
+	e := newEngineWithCards(t, 1)
+	id, _ := e.DrawSabot(Transfer{Target: TargetAvatar, OwnerID: "u-alice"})
+	ok, handOwner := e.Flip(id)
+	if !ok {
+		t.Fatal("Flip aurait dû réussir")
+	}
+	if handOwner != "u-alice" {
+		t.Fatalf("handOwner attendu u-alice, got %q", handOwner)
 	}
 }
 
@@ -158,6 +178,41 @@ func TestTransferHandToTableAtDropPosition(t *testing.T) {
 	h := e.snapshotHand("u-alice")
 	if len(h.Cards) != 0 {
 		t.Fatalf("la main d'alice devrait être vide après le transfert, got %+v", h.Cards)
+	}
+}
+
+func TestTransferPreservesFaceState(t *testing.T) {
+	// Un simple déplacement (drag) ne doit jamais changer l'état face d'une
+	// carte : seule une distribution depuis le sabot (DrawSabot) la révèle.
+	// Un joueur doit pouvoir retourner une carte de sa main avant de la poser
+	// sur le tapis, et ce choix doit être respecté.
+	e := newEngineWithCards(t, 1)
+	id, _ := e.DrawSabot(Transfer{Target: TargetTable, X: 0, Y: 0}) // dealt=true -> face visible
+	e.TransferCard(Transfer{CardID: id, Target: TargetAvatar, OwnerID: "u-alice"})
+	if ok, _ := e.Flip(id); !ok { // alice retourne la carte face cachée dans sa main
+		t.Fatal("Flip aurait dû réussir")
+	}
+	if e.findCard(id).FaceUp {
+		t.Fatal("la carte devrait être face cachée après Flip")
+	}
+	e.TransferCard(Transfer{CardID: id, Target: TargetTable, X: 10, Y: 20})
+	if e.findCard(id).FaceUp {
+		t.Fatal("poser une carte face cachée sur le tapis ne devrait pas la révéler")
+	}
+}
+
+func TestDrawSabotAlwaysRevealsCard(t *testing.T) {
+	// Contre-épreuve : une véritable distribution (tirage du sabot) doit
+	// toujours révéler la carte dans sa nouvelle zone, contrairement à un
+	// simple déplacement.
+	e := newEngineWithCards(t, 2)
+	idTable, _ := e.DrawSabot(Transfer{Target: TargetTable, X: 0, Y: 0})
+	if !e.findCard(idTable).FaceUp {
+		t.Fatal("une carte distribuée sur la table devrait être face visible")
+	}
+	idHand, _ := e.DrawSabot(Transfer{Target: TargetAvatar, OwnerID: "u-bob"})
+	if !e.findCard(idHand).FaceUp {
+		t.Fatal("une carte distribuée dans une main devrait être face visible pour son propriétaire")
 	}
 }
 

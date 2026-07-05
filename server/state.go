@@ -105,7 +105,7 @@ func (e *engine) layoutAvatar(p *Player, index int, w, h float64) {
 	// siège dont le centre + la moitié de sa hauteur dépasserait h sortirait
 	// complètement de la zone défilable (perdu, pas seulement hors champ).
 	cx, cy := w/2, h/2
-	rx, ry := w*0.43, h*0.3125
+	rx, ry := w*0.43, h*0.36
 	// Angle décalé pour que le siège 0 soit en bas (sud), face à la table.
 	a := float64(index%seats)*(2*math.Pi/seats) + math.Pi/2
 	p.AX = cx + rx*math.Cos(a)
@@ -162,13 +162,20 @@ func (e *engine) nextZ() int {
 // ---- Mutations atomiques (appelées sous e.mu verrouillé) ------------------
 
 // Flip retourne la carte (recto/verso). Autorisé sur table et en main.
-func (e *engine) Flip(cardID string) bool {
+// handOwner est non vide si la carte retournée se trouve dans une main
+// privée : le serveur doit alors notifier ce joueur directement, car cette
+// mutation n'apparaît jamais dans l'état public (snapshotPublic exclut les
+// mains privées).
+func (e *engine) Flip(cardID string) (ok bool, handOwner string) {
 	c := e.findCard(cardID)
 	if c == nil || c.Zone == ZoneSabot {
-		return false
+		return false, ""
 	}
 	c.FaceUp = !c.FaceUp
-	return true
+	if c.Zone == ZoneHand {
+		return true, c.Owner
+	}
+	return true, ""
 }
 
 // BringToFront place une carte de table au premier plan (Z maximum).
@@ -231,8 +238,13 @@ type TransferResult struct {
 }
 
 // applyTransfer réalise le transfert d'une carte déjà identifiée vers une cible.
-// fromZone = zone de la carte AVANT l'opération. Retourne le résultat de diff.
-func (e *engine) applyTransfer(c *Card, fromZone Zone, t Transfer) TransferResult {
+// fromZone = zone de la carte AVANT l'opération. dealt indique une véritable
+// distribution (tirage depuis le sabot, cf. DrawSabot) : seul ce cas révèle la
+// carte dans sa nouvelle zone. Un simple déplacement (drag main→tapis,
+// tapis→main d'un autre joueur, etc. via TransferCard) ne doit JAMAIS changer
+// l'état face d'une carte : un joueur peut avoir choisi de retourner une carte
+// de sa main avant de la poser, ce choix doit être respecté.
+func (e *engine) applyTransfer(c *Card, fromZone Zone, t Transfer, dealt bool) TransferResult {
 	// Propriétaire AVANT mutation : non vide seulement si la carte venait
 	// d'une main (fromZone == ZoneHand). Permet de notifier ce joueur que sa
 	// main a perdu une carte, quelle que soit la destination (sinon la carte
@@ -247,12 +259,14 @@ func (e *engine) applyTransfer(c *Card, fromZone Zone, t Transfer) TransferResul
 		c.Zone = ZoneTable
 		c.Owner = ""
 		c.X, c.Y = t.X, t.Y
-		c.FaceUp = true // une carte posée sur le tapis est visible (comportement table physique)
+		if dealt {
+			c.FaceUp = true // distribution depuis le sabot : révélée (comportement table physique)
+		}
 		c.Z = e.nextZ()
 		return TransferResult{PublicChanged: true, FromHandOwner: prevHandOwner}
 
 	case TargetSabot:
-		// table→sabot : remise dans la shoe, face cachée, au sommet.
+		// table→sabot : remise dans la shoe, toujours face cachée, au sommet.
 		c.Zone = ZoneSabot
 		c.Owner = ""
 		c.FaceUp = false
@@ -272,7 +286,9 @@ func (e *engine) applyTransfer(c *Card, fromZone Zone, t Transfer) TransferResul
 		c.X, c.Y = 0, 0
 		c.Rotate = 0
 		c.Z = 0
-		c.FaceUp = true // dans sa propre main, visible par son propriétaire
+		if dealt {
+			c.FaceUp = true // distribution depuis le sabot : visible par son propriétaire
+		}
 		return TransferResult{
 			PublicChanged: fromZone.public(), // si elle venait de la table/sabot, le public change
 			HandOwner:     t.OwnerID,
@@ -282,16 +298,16 @@ func (e *engine) applyTransfer(c *Card, fromZone Zone, t Transfer) TransferResul
 	return TransferResult{}
 }
 
-// TransferCard applique un transfert sur une carte identifiée par son ID.
+// TransferCard applique un transfert sur une carte identifiée par son ID. Ce
+// n'est jamais une distribution (dealt=false) : un simple drag ne change pas
+// l'état face de la carte, quelle que soit la zone source ou destination.
 func (e *engine) TransferCard(t Transfer) TransferResult {
 	c := e.findCard(t.CardID)
 	if c == nil {
 		return TransferResult{}
 	}
 	fromZone := c.Zone
-	// Retrait explicite du sabot si la carte en sortait (cas table→sabot géré
-	// plus haut en ré-insérant ; ici on nettoie le sabotage pour le tirage).
-	return e.applyTransfer(c, fromZone, t)
+	return e.applyTransfer(c, fromZone, t, false)
 }
 
 // DrawSabot tire la carte au sommet du sabot vers une cible (drag du sabot, §6).
@@ -309,8 +325,9 @@ func (e *engine) DrawSabot(t Transfer) (string, TransferResult) {
 		return "", TransferResult{}
 	}
 	// Une carte tirée du sabot devient publique (changement public) puis suit
-	// la cible du drop.
-	res := e.applyTransfer(c, ZoneSabot, t)
+	// la cible du drop. C'est une véritable distribution (dealt=true) : elle
+	// est révélée dans sa nouvelle zone.
+	res := e.applyTransfer(c, ZoneSabot, t, true)
 	return id, res
 }
 
