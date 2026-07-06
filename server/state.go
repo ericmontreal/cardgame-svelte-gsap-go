@@ -45,11 +45,15 @@ type Card struct {
 // Player décrit un participant connecté. Le serveur reste l'unique source de
 // vérité de cette liste.
 type Player struct {
-	UserID string  `json:"userId"`
-	Name   string  `json:"name"`
+	UserID string `json:"userId"`
+	Name   string `json:"name"`
 	// Position de l'avatar sur le tapis (px, relatifs à la zone table).
 	AX float64 `json:"ax"`
 	AY float64 `json:"ay"`
+	// Nombre de cartes dans sa main (compte seul, jamais les cartes
+	// elles-mêmes : la main reste privée). Recalculé à chaque snapshot
+	// public, cf. snapshotPublic — ne pas alimenter ce champ ailleurs.
+	HandCount int `json:"handCount"`
 }
 
 // ---- Engine ---------------------------------------------------------------
@@ -354,9 +358,12 @@ type handPayload struct {
 // snapshotPublic construit l'état public complet.
 func (e *engine) snapshotPublic() publicState {
 	out := publicState{Type: "state", SabotCount: len(e.sabot), Initialized: e.Initialized()}
+	handCounts := make(map[string]int, len(e.players))
 	for _, c := range e.cards {
 		if c.Zone == ZoneTable {
 			out.Table = append(out.Table, c)
+		} else if c.Zone == ZoneHand {
+			handCounts[c.Owner]++
 		}
 	}
 	// Tri stable par Z croissant pour un rendu correct de la superposition.
@@ -364,7 +371,9 @@ func (e *engine) snapshotPublic() publicState {
 		return out.Table[i].Z < out.Table[j].Z
 	})
 	for _, p := range e.players {
-		out.Players = append(out.Players, *p)
+		pc := *p
+		pc.HandCount = handCounts[p.UserID]
+		out.Players = append(out.Players, pc)
 	}
 	// Ordre stable des joueurs (par userID) pour un diff propre.
 	sort.SliceStable(out.Players, func(i, j int) bool {

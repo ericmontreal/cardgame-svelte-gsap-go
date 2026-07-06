@@ -3,7 +3,7 @@
   // une carte sur un avatar la transfère dans la main privée du joueur (§6).
   import { createEventDispatcher } from 'svelte'
 
-  export let player = { userId: '', name: '', ax: 0, ay: 0 }
+  export let player = { userId: '', name: '', ax: 0, ay: 0, handCount: 0 }
   export let isMe = false
   export let size = 64
 
@@ -50,7 +50,12 @@
   on:dragover={onDragOver}
   on:drop={onDrop}
 >
-  <div class="medal">{initials}</div>
+  <div class="medal">
+    {initials}
+    <!-- Nombre de cartes en main (comme le badge du sabot) : le compte est
+         public, jamais les cartes elles-mêmes (§ vie privée de la main). -->
+    <div class="handcount" title="{player.handCount ?? 0} carte{(player.handCount ?? 0) > 1 ? 's' : ''} en main">{player.handCount ?? 0}</div>
+  </div>
   <div class="name">{player.name}{isMe ? ' (vous)' : ''}</div>
 </div>
 
@@ -67,6 +72,7 @@
     user-select: none;
   }
   .medal {
+    position: relative;
     width: var(--size);
     height: var(--size);
     border-radius: 50%;
@@ -80,6 +86,23 @@
     font-size: calc(var(--size) * 0.36);
     font-family: system-ui, sans-serif;
     transition: transform .12s ease, box-shadow .12s ease;
+  }
+  .handcount {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    background: #2f9e63;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 5px;
+    border-radius: 999px;
+    display: grid;
+    place-items: center;
+    font-family: system-ui, sans-serif;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.4);
   }
   .avatar.is-me .medal { border-color: #ffd27a; }
   .avatar.hovered .medal {

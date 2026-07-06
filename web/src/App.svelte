@@ -115,8 +115,17 @@
 
   // ---- Nouvelle partie : réaffiche le menu de config (§ menu init à chaque
   // nouvelle partie). La session/connexion WS reste active ; seul le sabot
-  // sera remplacé au prochain "Ouvrir la table".
-  function newGame() {
+  // sera remplacé au prochain "Ouvrir la table". Confirmation requise : ça
+  // repart de zéro pour TOUS les joueurs connectés (sabot + mains vidées).
+  let confirmingNewGame = false
+  function askNewGame() {
+    confirmingNewGame = true
+  }
+  function cancelNewGame() {
+    confirmingNewGame = false
+  }
+  function confirmNewGame() {
+    confirmingNewGame = false
     step = 'init'
   }
 
@@ -166,9 +175,22 @@
         <span class="brand">🃏 Table de cartes</span>
         <span class="me">Connecté en tant que <b>{session.name}</b></span>
         <span class="status" data-s={$wsStatus}>● {statusLabel}</span>
-        <button class="newgame" on:click={newGame}>Nouvelle partie</button>
+        <button class="newgame" on:click={askNewGame}>Nouvelle partie</button>
         <button class="logout" on:click={logout}>Déconnexion</button>
       </header>
+
+      {#if confirmingNewGame}
+        <div class="modal-backdrop" on:click={cancelNewGame}>
+          <div class="modal" on:click|stopPropagation>
+            <h2>Nouvelle partie ?</h2>
+            <p>Le sabot sera remplacé et la main de <b>tous les joueurs connectés</b> sera vidée. Cette action est immédiate pour tout le monde.</p>
+            <div class="modal-actions">
+              <button class="cancel" on:click={cancelNewGame}>Annuler</button>
+              <button class="confirm" on:click={confirmNewGame}>Confirmer</button>
+            </div>
+          </div>
+        </div>
+      {/if}
 
       <div class="body">
         <Table
@@ -232,4 +254,31 @@
   .newgame:hover, .logout:hover { background: rgba(255,255,255,0.1); }
 
   .body { display: grid; grid-template-columns: 1fr auto; min-height: 0; }
+
+  .modal-backdrop {
+    position: fixed; inset: 0; z-index: 1000;
+    background: rgba(0,0,0,0.55);
+    display: grid; place-items: center;
+  }
+  .modal {
+    width: min(420px, 90vw);
+    background: #0d2a1e;
+    color: #eef;
+    padding: 1.4rem 1.5rem;
+    border-radius: 12px;
+    border: 1px solid rgba(255,255,255,0.1);
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+    font-family: system-ui, sans-serif;
+  }
+  .modal h2 { margin: 0 0 .6rem; font-size: 1.1rem; }
+  .modal p { margin: 0 0 1.1rem; font-size: .9rem; opacity: .85; line-height: 1.4; }
+  .modal p b { color: #ffd27a; }
+  .modal-actions { display: flex; gap: .6rem; justify-content: flex-end; }
+  .modal-actions button {
+    padding: .5rem 1rem; border-radius: 8px; border: 0; cursor: pointer; font-size: .9rem; font-weight: 600;
+  }
+  .modal-actions .cancel { background: rgba(255,255,255,0.1); color: #eef; }
+  .modal-actions .cancel:hover { background: rgba(255,255,255,0.18); }
+  .modal-actions .confirm { background: #2f9e63; color: #fff; }
+  .modal-actions .confirm:hover { background: #36b46f; }
 </style>

@@ -275,6 +275,34 @@ func TestSnapshotExcludesPrivateHands(t *testing.T) {
 	}
 }
 
+func TestSnapshotReportsHandCountWithoutLeakingCards(t *testing.T) {
+	// Les autres joueurs doivent voir combien de cartes chacun a en main
+	// (comme pour le sabot), sans jamais voir les cartes elles-mêmes.
+	e := newEngineWithCards(t, 3)
+	e.ensurePlayer("u-alice", "alice", tableW, tableH)
+	e.ensurePlayer("u-bob", "bob", tableW, tableH)
+	id1, _ := e.DrawSabot(Transfer{Target: TargetAvatar, OwnerID: "u-alice"})
+	id2, _ := e.DrawSabot(Transfer{Target: TargetAvatar, OwnerID: "u-alice"})
+	_, _ = e.DrawSabot(Transfer{Target: TargetAvatar, OwnerID: "u-bob"})
+
+	st := e.snapshotPublic()
+	counts := map[string]int{}
+	for _, p := range st.Players {
+		counts[p.UserID] = p.HandCount
+	}
+	if counts["u-alice"] != 2 {
+		t.Fatalf("alice devrait avoir 2 cartes en main, got %d", counts["u-alice"])
+	}
+	if counts["u-bob"] != 1 {
+		t.Fatalf("bob devrait avoir 1 carte en main, got %d", counts["u-bob"])
+	}
+	for _, c := range st.Table {
+		if c.ID == id1 || c.ID == id2 {
+			t.Fatal("les cartes en main ne doivent jamais apparaître dans l'état public")
+		}
+	}
+}
+
 func TestEnsurePlayerAssignsDistinctPositions(t *testing.T) {
 	e := newEngine()
 	p1 := e.ensurePlayer("u-a", "alice", tableW, tableH)
