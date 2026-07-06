@@ -87,33 +87,41 @@
   }
 
   // ---- Hit-test au drop : route vers la bonne action serveur ----
-  function resolveDrop(clientX, clientY, cardId, fromZone) {
+  // trackedPos : position du centre de la carte réellement suivie pendant le
+  // drag (cf. Card.svelte curX/curY), à utiliser pour le placement sur la
+  // table. Le point du pointeur (clientX/clientY) ne sert qu'au hit-test de
+  // la cible (table/sabot/avatar/main) : l'utiliser aussi comme coordonnées
+  // finales recentrerait la carte sous le curseur, ignorant le décalage de
+  // prise.
+  function resolveDrop(clientX, clientY, cardId, trackedPos) {
     refreshRect()
     const hit = dropAt(clientX, clientY, { tableRect })
     if (!hit) {
       // Hors de toute cible : on annule (la carte reste à sa position serveur).
-      return
+      return false
     }
     switch (hit.target) {
       case TARGETS.TABLE: {
-        // Pose/replace sur le tapis à la position de relâchement, aimantée
-        // contre une carte voisine si suffisamment proche.
-        const snapped = snapPosition(hit.x, hit.y, cardId)
+        // Pose/replace sur le tapis à la position suivie pendant le drag,
+        // aimantée contre une carte voisine si suffisamment proche.
+        const pos = trackedPos ?? hit
+        const snapped = snapPosition(pos.x, pos.y, cardId)
         dispatch('move', { cardId, x: snapped.x, y: snapped.y })
-        break
+        return true
       }
       case TARGETS.SABOT:
         dispatch('transfer', { cardId, target: TARGETS.SABOT })
-        break
+        return true
       case TARGETS.AVATAR:
         // Don de carte : elle passe dans la main privée du joueur cible.
         dispatch('transfer', { cardId, target: TARGETS.AVATAR, ownerId: hit.ownerId })
-        break
+        return true
       case TARGETS.HAND:
         // Vers ma propre main (zone main basse).
         dispatch('transfer', { cardId, target: TARGETS.HAND, ownerId: myUserId })
-        break
+        return true
     }
+    return false
   }
 
   // ---- Handlers des cartes de table ----
@@ -123,8 +131,8 @@
     dispatch('drag', { cardId, x, y })
   }
   function onCardDrop(e) {
-    const { cardId, clientX, clientY } = e.detail
-    resolveDrop(clientX, clientY, cardId, 'table')
+    const { cardId, clientX, clientY, x, y } = e.detail
+    e.detail.accepted = resolveDrop(clientX, clientY, cardId, { x, y })
   }
   function onCardFlip(e) { dispatch('flip', e.detail) }
   function onCardFront(e) { dispatch('front', e.detail) }

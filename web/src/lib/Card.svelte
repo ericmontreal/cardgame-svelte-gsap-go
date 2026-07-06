@@ -40,6 +40,7 @@
 
   // Animation de retournement 3D au changement de face (GSAP obligatoire §3).
   let lastFaceUp = c.faceUp
+  let lastX = c.x, lastY = c.y
   afterUpdate(() => {
     setBoth()
     if (c.faceUp !== lastFaceUp && rootEl) {
@@ -50,6 +51,14 @@
       )
       lastFaceUp = c.faceUp
     }
+    // La position serveur (c.x/c.y) vient d'être confirmée après un drop :
+    // on relâche alors la transform locale tenue depuis onPointerUp, sans
+    // provoquer de saut visuel (elle affiche déjà la bonne position).
+    if ((c.x !== lastX || c.y !== lastY) && rootEl && !dragging) {
+      gsap.set(rootEl, { x: 0, y: 0 })
+    }
+    lastX = c.x
+    lastY = c.y
   })
 
   onMount(() => {
@@ -68,6 +77,7 @@
   let moved = false
   let startX = 0, startY = 0      // position initiale du pointeur
   let originX = 0, originY = 0    // position initiale de la carte (transform)
+  let curX = 0, curY = 0          // dernière position suivie (centre carte) pendant le drag
 
   function onPointerDown(e) {
     if (!draggable) return
@@ -101,6 +111,8 @@
     if (!moved) return
     const nx = originX + dx
     const ny = originY + dy
+    curX = nx
+    curY = ny
     // Position live du drag (pour fluidité inter-clients + vue locale).
     dispatch('drag', { cardId: c.id, x: nx, y: ny })
     if (rootEl) {
@@ -124,10 +136,9 @@
     if (!dragging) return
     dragging = false
     try { e.currentTarget.releasePointerCapture(e.pointerId) } catch {}
-    // Remise à zéro du transform local : la position finale est portée par
-    // (c.x, c.y) une fois l'état confirmé par le serveur reçu.
-    if (rootEl) gsap.set(rootEl, { x: 0, y: 0 })
     if (!moved) {
+      // Pas de déplacement réel : remise à zéro immédiate (rien à préserver).
+      if (rootEl) gsap.set(rootEl, { x: 0, y: 0 })
       dispatch('dragend', { cardId: c.id, moved: false, clientX: e.clientX, clientY: e.clientY })
       const now = Date.now()
       if (now - lastClickAt < DBLCLICK_MS) {
@@ -139,7 +150,18 @@
       }
       return
     }
-    dispatch('drop', { cardId: c.id, zone, clientX: e.clientX, clientY: e.clientY })
+    // On transmet (curX, curY) — la position réellement suivie pendant le
+    // drag, qui préserve le décalage de prise — plutôt que la position brute
+    // du pointeur : sinon la carte recentre son centre sous le curseur au
+    // lâcher, quel que soit l'endroit où elle a été saisie. Le parent
+    // (Table.svelte) indique via `detail.accepted` si un déplacement serveur
+    // a bien été déclenché ; si non (lâcher hors cible), on revient aussitôt
+    // à la position d'origine. Si oui, on garde le rendu actuel (pas de
+    // retour-puis-saut) jusqu'à ce que (c.x, c.y) confirme le serveur, cf.
+    // afterUpdate.
+    const detail = { cardId: c.id, zone, x: curX, y: curY, clientX: e.clientX, clientY: e.clientY, accepted: false }
+    dispatch('drop', detail)
+    if (rootEl && !detail.accepted) gsap.set(rootEl, { x: 0, y: 0 })
   }
 
   // ---- Accessibilité clavier (flip) ----
