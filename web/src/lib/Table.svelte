@@ -14,6 +14,7 @@
   export let sabotCount = 0
   export let initialized = false
   export let myUserId = ''
+  export let snapEnabled = true  // aimantage entre cartes proches (menu init)
 
   const dispatch = createEventDispatcher()
 
@@ -49,6 +50,42 @@
     liveY = d.y
   })
 
+  // ---- Aimantage entre cartes proches (placement côte à côte) --------------
+  // Dimensions par défaut d'une carte de table (Table.svelte ne passe pas de
+  // width/height à <Card>, cf. plus bas). Les cartes sont positionnées par
+  // leur centre (§ card-anchor) : deux cartes exactement côte à côte ont donc
+  // leurs centres espacés d'une largeur (horizontalement) ou d'une hauteur
+  // (verticalement) de carte.
+  const CARD_W = 92
+  const CARD_H = 128
+  const SNAP_DIST = 22 // px : au-delà, pas d'aimantage (mouvement libre)
+
+  // snapPosition ajuste (x,y) pour coller exactement au bord d'une carte
+  // voisine si le point de relâchement en est suffisamment proche. cardId est
+  // exclu de la recherche (une carte ne s'aimante pas à elle-même).
+  function snapPosition(x, y, cardId) {
+    if (!snapEnabled) return { x, y }
+    let best = null
+    let bestDist = SNAP_DIST
+    for (const other of table) {
+      if (other.id === cardId) continue
+      const candidates = [
+        { x: other.x + CARD_W, y: other.y }, // à droite du voisin
+        { x: other.x - CARD_W, y: other.y }, // à gauche du voisin
+        { x: other.x, y: other.y + CARD_H }, // sous le voisin
+        { x: other.x, y: other.y - CARD_H }, // au-dessus du voisin
+      ]
+      for (const cand of candidates) {
+        const d = Math.hypot(cand.x - x, cand.y - y)
+        if (d < bestDist) {
+          bestDist = d
+          best = cand
+        }
+      }
+    }
+    return best ?? { x, y }
+  }
+
   // ---- Hit-test au drop : route vers la bonne action serveur ----
   function resolveDrop(clientX, clientY, cardId, fromZone) {
     refreshRect()
@@ -58,10 +95,13 @@
       return
     }
     switch (hit.target) {
-      case TARGETS.TABLE:
-        // Pose/replace sur le tapis à la position de relâchement.
-        dispatch('move', { cardId, x: hit.x, y: hit.y })
+      case TARGETS.TABLE: {
+        // Pose/replace sur le tapis à la position de relâchement, aimantée
+        // contre une carte voisine si suffisamment proche.
+        const snapped = snapPosition(hit.x, hit.y, cardId)
+        dispatch('move', { cardId, x: snapped.x, y: snapped.y })
         break
+      }
       case TARGETS.SABOT:
         dispatch('transfer', { cardId, target: TARGETS.SABOT })
         break
@@ -97,9 +137,11 @@
     const hit = dropAt(clientX, clientY, { tableRect })
     if (!hit) return
     switch (hit.target) {
-      case TARGETS.TABLE:
-        dispatch('sabotDraw', { target: TARGETS.TABLE, x: hit.x, y: hit.y })
+      case TARGETS.TABLE: {
+        const snapped = snapPosition(hit.x, hit.y, null)
+        dispatch('sabotDraw', { target: TARGETS.TABLE, x: snapped.x, y: snapped.y })
         break
+      }
       case TARGETS.AVATAR:
         dispatch('sabotDraw', { target: TARGETS.AVATAR, ownerId: hit.ownerId })
         break

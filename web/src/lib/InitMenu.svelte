@@ -20,6 +20,7 @@
   const defaultDeckCount = 1
   const defaultJokers = 'none'
   const defaultShuffle = true
+  const defaultSnapEnabled = true
 
   // ---- État du formulaire, pré-rempli depuis la config persistée ----
   const persisted = loadDeckConfig()
@@ -28,6 +29,7 @@
   let deckCount = persisted?.deckCount ?? defaultDeckCount
   let jokers = persisted?.jokers ?? defaultJokers
   let shuffle = persisted?.shuffle ?? defaultShuffle
+  let snapEnabled = persisted?.snapEnabled ?? defaultSnapEnabled
 
   // Ordre d'affichage des valeurs, comme config_jeu.html : 2..10, Valets,
   // Dames, Rois, As (l'As en dernier, convention "carte forte").
@@ -57,7 +59,7 @@
 
   function start() {
     if (!validSuits || !validRanks) return
-    saveDeckConfig({ suits: { ...suits }, ranks: { ...ranksChecked }, deckCount, jokers, shuffle })
+    saveDeckConfig({ suits: { ...suits }, ranks: { ...ranksChecked }, deckCount, jokers, shuffle, snapEnabled })
     dispatch('start', {
       config: {
         deckCount,
@@ -66,6 +68,7 @@
         jokers,
       },
       shuffle,
+      snapEnabled,
     })
   }
 
@@ -76,6 +79,7 @@
     deckCount = defaultDeckCount
     jokers = defaultJokers
     shuffle = defaultShuffle
+    snapEnabled = defaultSnapEnabled
   }
 </script>
 
@@ -136,6 +140,10 @@
         <input type="checkbox" bind:checked={shuffle} />
         Mélanger le sabot à la création
       </label>
+      <label class="opt">
+        <input type="checkbox" bind:checked={snapEnabled} />
+        Aimanter les cartes proches (placement côte à côte)
+      </label>
     </fieldset>
 
     <div class="summary">
@@ -193,6 +201,7 @@
   }
   .deck .count { min-width: 2ch; text-align: center; font-size: 1.1rem; }
   .opt { display: flex; align-items: center; gap: .5rem; cursor: pointer; font-size: .9rem; }
+  .opt + .opt { margin-top: .5rem; }
   .opt input { accent-color: #2f9e63; }
   .summary { margin: .9rem 0 .4rem; font-size: .9rem; opacity: .9; display: flex; gap: .6rem; align-items: center; flex-wrap: wrap; }
   .warn { color: #ffd27a; font-size: .85rem; }

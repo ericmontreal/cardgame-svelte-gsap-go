@@ -28,6 +28,9 @@
   let step = session ? 'connecting' : 'auth'
   let joinDecided = false
   let errorMsg = ''
+  // Préférence client (pas envoyée au serveur) : aimanter une carte lâchée
+  // près d'une autre pour un placement côte à côte facile (§ Table.svelte).
+  let snapEnabled = true
 
   // Aide de connexion : comptes démo si USERS_SEED non défini côté serveur.
   const SEED_HINT = 'Comptes démo : alice/secret, bob/secret'
@@ -93,7 +96,8 @@
   // La WS est déjà connectée et ouverte à ce stade (on n'atteint 'init' qu'après
   // avoir reçu le premier "state" du serveur sur cette connexion).
   function onInitStart(e) {
-    const { config, shuffle } = e.detail
+    const { config, shuffle, snapEnabled: snap } = e.detail
+    snapEnabled = snap ?? true
     ws?.sendInit(config, shuffle)
     step = 'table'
   }
@@ -199,6 +203,7 @@
           sabotCount={st.sabotCount}
           initialized={st.initialized}
           myUserId={session.id}
+          snapEnabled={snapEnabled}
           on:move={sendMove}
           on:drag={sendDrag}
           on:flip={sendFlip}
