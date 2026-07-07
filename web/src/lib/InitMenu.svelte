@@ -45,6 +45,13 @@
   $: selectedRanks = rankOrder.filter((r) => ranksChecked[r])
   $: validSuits = selectedSuits.length > 0
   $: validRanks = selectedRanks.length > 0
+
+  // Case "Aucune" : décoche toutes les valeurs d'un coup (plus rapide que de
+  // décocher les 13 cases une à une pour repartir d'une sélection vide).
+  function clearRanks() {
+    rankOrder.forEach((r) => (ranksChecked[r] = false))
+    ranksChecked = { ...ranksChecked }
+  }
   // Estimation du nombre de cartes (aperçu en direct).
   $: estCards =
     (validSuits && validRanks)
@@ -91,6 +98,10 @@
     <fieldset>
       <legend>Valeurs des cartes</legend>
       <div class="row ranks">
+        <label class="chip none" class:checked={!validRanks}>
+          <input type="checkbox" checked={!validRanks} on:change={clearRanks} />
+          <span>Aucune</span>
+        </label>
         {#each rankOrder as r}
           <label class="chip" class:checked={ranksChecked[r]}>
             <input type="checkbox" bind:checked={ranksChecked[r]} />
@@ -125,7 +136,7 @@
     <fieldset>
       <legend>Jokers</legend>
       <div class="row jokers">
-        {#each [['none', 'Aucun'], ['black', 'Noir'], ['red', 'Rouge'], ['both', 'Noir + Rouge']] as [val, lbl]}
+        {#each [['none', 'Aucun'], ['red', 'Le rouge'], ['black', 'Le noir'], ['both', 'Tous']] as [val, lbl]}
           <label class="chip" class:checked={jokers === val}>
             <input type="radio" name="jokers" value={val} bind:group={jokers} />
             <span>{lbl}</span>
