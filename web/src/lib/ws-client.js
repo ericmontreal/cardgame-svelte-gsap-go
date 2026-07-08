@@ -22,8 +22,19 @@
 //     { type:'chat',    sender, payload:{ author, text, at } }
 //     { type:'pong' }
 
+// URL WebSocket par défaut : même origine que la page (le proxy Vite en dev,
+// nginx en production, relaient /ws vers le serveur Go). Hors navigateur
+// (tests Node), on retombe sur l'adresse locale du serveur Go.
+function defaultWsUrl() {
+  if (typeof window === 'undefined' || !window.location?.host) {
+    return 'ws://localhost:8080/ws'
+  }
+  const proto = window.location.protocol === 'https:' ? 'wss' : 'ws'
+  return `${proto}://${window.location.host}/ws`
+}
+
 const DEFAULTS = {
-  url: 'ws://localhost:8080/ws',
+  url: defaultWsUrl(),
   room: 'lobby',
   token: '',                 // token de session (POST /api/login)
   pingInterval: 25000,       // ms

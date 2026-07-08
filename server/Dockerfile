@@ -1,0 +1,14 @@
+# Serveur Go autoritaire (WebSocket + /api/login).
+FROM golang:1.25-alpine AS build
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o /out/cardgame-server .
+
+FROM alpine:3.22
+RUN adduser -D -H app
+USER app
+COPY --from=build /out/cardgame-server /usr/local/bin/cardgame-server
+EXPOSE 8080
+ENTRYPOINT ["cardgame-server"]

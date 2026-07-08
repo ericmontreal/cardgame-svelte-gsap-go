@@ -1,0 +1,9 @@
+# Comptes joueurs du serveur de jeu — un compte par ligne, format "identifiant:motdepasse".
+# Les lignes vides et celles commençant par # sont ignorées.
+#
+# Utilisation : copier ce fichier (par ex. en users.txt), le remplir, puis
+# lancer le serveur avec USERS_FILE=/chemin/vers/users.txt
+# Sur le serveur Ubuntu, protégez le fichier :  chmod 600 users.txt
+#
+# alice:motdepasse-alice
+# bob:motdepasse-bob

@@ -1,0 +1,4 @@
+*.exe
+users.txt
+Dockerfile
+.dockerignore

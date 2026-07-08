@@ -1,0 +1,25 @@
+# Déploiement du jeu de cartes : `docker compose up -d --build`.
+#
+# Prérequis :
+#   1. Créer server/users.txt (voir server/users.txt.example), une ligne
+#      "nom:motdepasse" par compte.
+#   2. Définir ALLOWED_ORIGINS avec l'URL publique du jeu, par exemple :
+#        ALLOWED_ORIGINS=http://192.168.1.50:8090 docker compose up -d --build
+#      ou via un fichier .env à côté de ce fichier.
+services:
+  server:
+    build: ./server
+    environment:
+      USERS_FILE: /data/users.txt
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:8090}
+    volumes:
+      - ./server/users.txt:/data/users.txt:ro
+    restart: unless-stopped
+
+  web:
+    build: ./web
+    ports:
+      - "8090:80"
+    depends_on:
+      - server
+    restart: unless-stopped

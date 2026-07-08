@@ -234,25 +234,45 @@ func loginHandler(users UserStore, sessions *sessionManager, limiter *loginRateL
 
 // ---- Bootstrap ------------------------------------------------------------
 
-// bootstrapUsers charge les utilisateurs depuis la variable d'environnement
-// USERS_SEED au format "name:password,name2:password2". Mots de passe hachés
-// (bcrypt) puis stockés. Conforme au §10 : comptes préenregistrés, aucune
-// création dynamique.
+// bootstrapUsers charge les utilisateurs autorisés, par ordre de priorité :
+//  1. USERS_FILE : chemin d'un fichier texte, une entrée "name:password" par
+//     ligne ; lignes vides et commentaires (#) ignorés ;
+//  2. USERS_SEED : même entrées au format "name:password,name2:password2" ;
+//  3. ALLOW_DEMO_USERS=1 : comptes de démo alice/bob (tests locaux uniquement).
 //
-// Le jeu est réservé à un groupe fermé (famille/amis) : USERS_SEED est donc
-// obligatoire. En son absence, le serveur refuse de démarrer, sauf si
-// ALLOW_DEMO_USERS=1 est explicitement défini, auquel cas deux comptes de
-// démo (alice/bob) sont créés comme avant, pour faciliter les tests locaux.
+// Mots de passe hachés (bcrypt) puis stockés. Conforme au §10 : comptes
+// préenregistrés, aucune création dynamique. Le jeu est réservé à un groupe
+// fermé (famille/amis) : l'une des trois sources est donc obligatoire, sinon
+// le serveur refuse de démarrer.
 func bootstrapUsers(store *inMemoryUserStore) {
-	raw := strings.TrimSpace(os.Getenv("USERS_SEED"))
-	if raw == "" {
-		if os.Getenv("ALLOW_DEMO_USERS") != "1" {
-			log.Fatal("USERS_SEED non défini. Définissez USERS_SEED (\"name:password,...\") ou, pour un usage de test uniquement, ALLOW_DEMO_USERS=1.")
+	var entries []string
+	if path := strings.TrimSpace(os.Getenv("USERS_FILE")); path != "" {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			log.Fatalf("USERS_FILE: lecture impossible de %q: %v", path, err)
 		}
-		log.Println("ATTENTION: USERS_SEED non défini — création de comptes de démon (alice/secret, bob/secret) car ALLOW_DEMO_USERS=1.")
-		raw = "alice:secret,bob:secret"
+		for line := range strings.SplitSeq(string(data), "\n") {
+			line = strings.TrimSpace(line)
+			if line == "" || strings.HasPrefix(line, "#") {
+				continue
+			}
+			entries = append(entries, line)
+		}
+		if len(entries) == 0 {
+			log.Fatalf("USERS_FILE: aucun compte valide dans %q", path)
+		}
+	} else {
+		raw := strings.TrimSpace(os.Getenv("USERS_SEED"))
+		if raw == "" {
+			if os.Getenv("ALLOW_DEMO_USERS") != "1" {
+				log.Fatal("Aucun compte défini. Définissez USERS_FILE (fichier texte, une ligne \"name:password\" par compte), USERS_SEED (\"name:password,...\") ou, pour un usage de test uniquement, ALLOW_DEMO_USERS=1.")
+			}
+			log.Println("ATTENTION: aucun compte défini — création de comptes de démo (alice/secret, bob/secret) car ALLOW_DEMO_USERS=1.")
+			raw = "alice:secret,bob:secret"
+		}
+		entries = strings.Split(raw, ",")
 	}
-	for i, entry := range strings.Split(raw, ",") {
+	for i, entry := range entries {
 		entry = strings.TrimSpace(entry)
 		if entry == "" {
 			continue
