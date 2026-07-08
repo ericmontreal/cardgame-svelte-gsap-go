@@ -17,6 +17,9 @@
   export let height = 128
   // La carte est-elle manipulable par drag ? (les cartes du sabot ne le sont pas)
   export let draggable = true
+  // La carte fait-elle partie de la sélection multiple ? (halo visuel, géré
+  // par le parent Table.svelte — la carte ne connaît pas la sélection).
+  export let selected = false
 
   const dispatch = createEventDispatcher()
 
@@ -140,6 +143,12 @@
       // Pas de déplacement réel : remise à zéro immédiate (rien à préserver).
       if (rootEl) gsap.set(rootEl, { x: 0, y: 0 })
       dispatch('dragend', { cardId: c.id, moved: false, clientX: e.clientX, clientY: e.clientY })
+      // Shift+clic sur une carte de table : ajoute/retire de la sélection
+      // multiple, sans flip ni mise au premier plan (le parent gère l'état).
+      if (e.shiftKey && zone === 'table') {
+        dispatch('toggleselect', { cardId: c.id })
+        return
+      }
       const now = Date.now()
       if (now - lastClickAt < DBLCLICK_MS) {
         lastClickAt = 0
@@ -184,6 +193,7 @@
     class:face-up={c.faceUp}
     class:face-down={!c.faceUp}
     class:dragging
+    class:selected
     width={width}
     height={height}
     viewBox="0 0 200 280"
@@ -221,5 +231,10 @@
     user-select: none;
   }
   .card.dragging { cursor: grabbing; z-index: 9999; box-shadow: 0 10px 24px rgba(0,0,0,0.5); }
+  .card.selected {
+    outline: 3px solid #ffd27a;
+    outline-offset: 1px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.35), 0 0 14px rgba(255,210,122,0.55);
+  }
   .card:focus-visible { outline: 3px solid #4caa7a; outline-offset: 2px; }
 </style>

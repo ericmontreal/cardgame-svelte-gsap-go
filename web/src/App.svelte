@@ -76,11 +76,21 @@
         applyChat(msg)
         break
       case 'drag':
-        // Drag live d'un autre joueur : on met à jour la position éphémère.
+        // Drag live d'un autre joueur : positions éphémères (cardId -> {x,y}).
         if (msg.payload) {
-          liveDrag.set({ cardId: msg.payload.cardId, x: msg.payload.x, y: msg.payload.y })
+          liveDrag.set({ [msg.payload.cardId]: { x: msg.payload.x, y: msg.payload.y } })
         }
         break
+      case 'dragMany': {
+        // Drag groupé live d'un autre joueur (sélection multiple).
+        const items = msg.payload?.items
+        if (Array.isArray(items)) {
+          const map = {}
+          for (const it of items) map[it.cardId] = { x: it.x, y: it.y }
+          liveDrag.set(map)
+        }
+        break
+      }
     }
   }
 
@@ -105,6 +115,9 @@
   // ---- Actions de table (remontées des composants) -> serveur ----
   function sendMove(e)    { ws?.sendMove(e.detail.cardId, e.detail.x, e.detail.y) }
   function sendDrag(e)    { ws?.sendDrag(e.detail.cardId, e.detail.x, e.detail.y) }
+  function sendMoveMany(e) { ws?.sendMoveMany(e.detail.items) }
+  function sendFlipMany(e) { ws?.sendFlipMany(e.detail.cardIds) }
+  function sendDragMany(e) { ws?.sendDragMany(e.detail.items) }
   function sendFlip(e)    { ws?.sendFlip(e.detail.cardId) }
   function sendFront(e)   { ws?.sendFront(e.detail.cardId) }
   function sendTransfer(e) {
@@ -206,6 +219,9 @@
           snapEnabled={snapEnabled}
           on:move={sendMove}
           on:drag={sendDrag}
+          on:moveMany={sendMoveMany}
+          on:flipMany={sendFlipMany}
+          on:dragMany={sendDragMany}
           on:flip={sendFlip}
           on:front={sendFront}
           on:transfer={sendTransfer}

@@ -10,6 +10,9 @@
 //     { type:'rotate',    payload:{ cardId, rotate } }             rotation
 //     { type:'move',      payload:{ cardId, x, y } }               drop sur la table
 //     { type:'drag',      payload:{ cardId, x, y } }               position live (fluidité)
+//     { type:'moveMany',  payload:{ items:[{cardId,x,y}] } }       drop groupé (sélection)
+//     { type:'flipMany',  payload:{ cardIds:[...] } }              retournement groupé
+//     { type:'dragMany',  payload:{ items:[{cardId,x,y}] } }       positions live groupées
 //     { type:'transfer',  payload:{ cardId, target, x, y, ownerId } }  change de zone
 //     { type:'sabotDraw', payload:{ target, x, y, ownerId } }      tire le sommet du sabot
 //     { type:'chat',      payload:{ text } }
@@ -19,6 +22,7 @@
 //     { type:'state',   payload:{ sabotCount, table[], players[], initialized } }
 //     { type:'hand',    payload:{ cards[] } }    (main privée, propriétaire seul)
 //     { type:'drag',    payload:{ cardId, x, y } } (drag live d'un autre client)
+//     { type:'dragMany',payload:{ items:[{cardId,x,y}] } } (drag groupé d'un autre client)
 //     { type:'chat',    sender, payload:{ author, text, at } }
 //     { type:'pong' }
 
@@ -183,6 +187,15 @@ export function createWsClient(opts = {}) {
     },
     sendDrag(cardId, x, y) {
       return send({ type: 'drag', payload: { cardId, x, y } })
+    },
+    sendMoveMany(items) {
+      return send({ type: 'moveMany', payload: { items } })
+    },
+    sendFlipMany(cardIds) {
+      return send({ type: 'flipMany', payload: { cardIds } })
+    },
+    sendDragMany(items) {
+      return send({ type: 'dragMany', payload: { items } })
     },
     sendTransfer(cardId, target, x, y, ownerId = '') {
       return send({ type: 'transfer', payload: { cardId, target, x, y, ownerId } })

@@ -32,23 +32,98 @@
     refreshRect()
     window.addEventListener('resize', refreshRect)
     window.addEventListener('scroll', refreshRect, true)
+    window.addEventListener('keydown', onGlobalKey)
     return () => {
       window.removeEventListener('resize', refreshRect)
       window.removeEventListener('scroll', refreshRect, true)
+      window.removeEventListener('keydown', onGlobalKey)
     }
   })
   // Recalcule le rect quand la table change de taille (nouvelles cartes...).
   $: table, players, sabotCount, initialized, refreshRect()
 
-  // ---- Position live d'un drag distant (autre joueur) ----
-  let liveCardId = null
-  let liveX = 0, liveY = 0
-  liveDrag.subscribe((d) => {
-    if (!d) { liveCardId = null; return }
-    liveCardId = d.cardId
-    liveX = d.x
-    liveY = d.y
-  })
+  // ---- Positions live d'un drag distant (autre joueur, simple ou groupé) ----
+  // Dictionnaire cardId -> {x,y}. L'auto-abonnement $liveDrag garantit le
+  // désabonnement à la destruction du composant et la réactivité du rendu.
+  $: livePos = $liveDrag ?? {}
+
+  // ---- Sélection multiple (état purement local, jamais envoyé au serveur) ---
+  // Rectangle de sélection tracé sur le feutre + shift+clic pour ajouter ou
+  // retirer une carte. Les manipulations groupées partent ensuite en une seule
+  // mutation par lot (moveMany/flipMany) vers le serveur autoritaire.
+  let selected = new Set()    // ids des cartes de table sélectionnées
+  let marquee = null          // { x0,y0,x1,y1 } coords tapis, pendant le tracé
+  let marqueeBase = new Set() // sélection au début du tracé (shift = union)
+
+  // Toute carte qui quitte la table (transfert, nouveau sabot...) sort de la
+  // sélection : l'état serveur fait foi.
+  $: pruneSelection(table)
+  function pruneSelection(tbl) {
+    if (selected.size === 0) return
+    const ids = new Set(tbl.map((c) => c.id))
+    const next = new Set()
+    for (const id of selected) if (ids.has(id)) next.add(id)
+    if (next.size !== selected.size) selected = next
+  }
+
+  function onToggleSelect(e) {
+    const id = e.detail.cardId
+    const next = new Set(selected)
+    if (next.has(id)) next.delete(id)
+    else next.add(id)
+    selected = next
+  }
+
+  // Raccourcis de sélection (hors champs de saisie, ex. chat) : Échap vide la
+  // sélection, F retourne toutes les cartes sélectionnées d'un coup.
+  function onGlobalKey(e) {
+    const tag = e.target && e.target.tagName
+    if (tag === 'INPUT' || tag === 'TEXTAREA') return
+    if (selected.size === 0) return
+    if (e.key === 'Escape') {
+      selected = new Set()
+    } else if (e.key === 'f' || e.key === 'F') {
+      dispatch('flipMany', { cardIds: [...selected] })
+    }
+  }
+
+  // ---- Rectangle de sélection (marquee) -------------------------------------
+  // Le tracé ne démarre que sur le fond (table ou feutre) : les pointerdown
+  // des cartes, avatars et sabot remontent aussi jusqu'ici par bouillonnement,
+  // mais avec un target différent — il ne faut pas les confondre avec un début
+  // de rectangle.
+  function onTablePointerDown(e) {
+    if (e.button !== 0 && e.pointerType === 'mouse') return
+    const t = e.target
+    if (t !== tableEl && !(t.classList && t.classList.contains('felt'))) return
+    refreshRect()
+    const x = e.clientX - tableRect.left
+    const y = e.clientY - tableRect.top
+    marquee = { x0: x, y0: y, x1: x, y1: y }
+    marqueeBase = e.shiftKey ? new Set(selected) : new Set()
+    tableEl.setPointerCapture(e.pointerId)
+  }
+  function onTablePointerMove(e) {
+    if (!marquee) return
+    marquee = { ...marquee, x1: e.clientX - tableRect.left, y1: e.clientY - tableRect.top }
+    const xa = Math.min(marquee.x0, marquee.x1), xb = Math.max(marquee.x0, marquee.x1)
+    const ya = Math.min(marquee.y0, marquee.y1), yb = Math.max(marquee.y0, marquee.y1)
+    // Une carte est retenue si son centre (c.x, c.y : les cartes sont ancrées
+    // par leur centre, cf. .card-anchor) tombe dans le rectangle.
+    const next = new Set(marqueeBase)
+    for (const c of table) {
+      if (c.x >= xa && c.x <= xb && c.y >= ya && c.y <= yb) next.add(c.id)
+    }
+    selected = next
+  }
+  function onTablePointerUp(e) {
+    if (!marquee) return
+    try { tableEl.releasePointerCapture(e.pointerId) } catch {}
+    // Simple clic dans le vide (aucun tracé réel), sans shift : désélection.
+    const traced = Math.abs(marquee.x1 - marquee.x0) > 4 || Math.abs(marquee.y1 - marquee.y0) > 4
+    if (!traced && !e.shiftKey) selected = new Set()
+    marquee = null
+  }
 
   // ---- Aimantage entre cartes proches (placement côte à côte) --------------
   // Dimensions par défaut d'une carte de table (Table.svelte ne passe pas de
@@ -61,14 +136,16 @@
   const SNAP_DIST = 22 // px : au-delà, pas d'aimantage (mouvement libre)
 
   // snapPosition ajuste (x,y) pour coller exactement au bord d'une carte
-  // voisine si le point de relâchement en est suffisamment proche. cardId est
-  // exclu de la recherche (une carte ne s'aimante pas à elle-même).
-  function snapPosition(x, y, cardId) {
+  // voisine si le point de relâchement en est suffisamment proche. `exclude`
+  // (id seul ou Set d'ids) écarte de la recherche la carte déplacée — ou tout
+  // un groupe en déplacement, qui ne doit pas s'aimanter sur lui-même.
+  function snapPosition(x, y, exclude) {
     if (!snapEnabled) return { x, y }
+    const excluded = exclude instanceof Set ? exclude : new Set(exclude ? [exclude] : [])
     let best = null
     let bestDist = SNAP_DIST
     for (const other of table) {
-      if (other.id === cardId) continue
+      if (excluded.has(other.id)) continue
       const candidates = [
         { x: other.x + CARD_W, y: other.y }, // à droite du voisin
         { x: other.x - CARD_W, y: other.y }, // à gauche du voisin
@@ -124,17 +201,98 @@
     return false
   }
 
+  // ---- Drag groupé : positions live locales des cartes "suiveuses" ----------
+  // La carte saisie (ancre) est déjà déplacée visuellement par Card.svelte
+  // (transform GSAP) ; les autres cartes sélectionnées suivent via ce
+  // dictionnaire, conservé après le drop jusqu'au prochain snapshot serveur
+  // (sinon elles sauteraient à leur ancienne position en attendant la
+  // confirmation, exactement le problème que Card.svelte évite pour l'ancre).
+  let groupDrag = {}
+  let groupDragging = false
+  $: table, releaseGroupDrag()
+  function releaseGroupDrag() {
+    if (!groupDragging && Object.keys(groupDrag).length) groupDrag = {}
+  }
+
+  // groupItems calcule la position cible de chaque carte sélectionnée quand
+  // l'ancre est en (ax, ay) : le groupe suit le même décalage, les positions
+  // relatives sont préservées.
+  function groupItems(anchorId, ax, ay) {
+    const anchor = table.find((c) => c.id === anchorId)
+    if (!anchor) return null
+    const dx = ax - anchor.x, dy = ay - anchor.y
+    return table
+      .filter((c) => selected.has(c.id))
+      .map((c) => ({ cardId: c.id, x: c.x + dx, y: c.y + dy }))
+  }
+
+  function setGroupDrag(items, anchorId) {
+    const gd = {}
+    for (const it of items) {
+      if (it.cardId !== anchorId) gd[it.cardId] = { x: it.x, y: it.y }
+    }
+    groupDrag = gd
+  }
+
+  // Drop d'un groupe : uniquement sur le tapis (phase 1). Lâcher un groupe
+  // sur le sabot, un avatar ou la main annule le geste — le transfert groupé
+  // viendra en phase 2. L'aimantage ne s'applique qu'à la carte ancre, le
+  // groupe suivant le même décalage : sinon chaque carte s'aimanterait de son
+  // côté et la disposition relative serait détruite.
+  function resolveGroupDrop(clientX, clientY, anchorId, trackedPos) {
+    refreshRect()
+    groupDragging = false
+    const hit = dropAt(clientX, clientY, { tableRect })
+    if (!hit || hit.target !== TARGETS.TABLE) {
+      groupDrag = {}
+      return false
+    }
+    const pos = trackedPos ?? hit
+    const snapped = snapPosition(pos.x, pos.y, selected)
+    const items = groupItems(anchorId, snapped.x, snapped.y)
+    if (!items) {
+      groupDrag = {}
+      return false
+    }
+    setGroupDrag(items, anchorId)
+    dispatch('moveMany', { items })
+    return true
+  }
+
   // ---- Handlers des cartes de table ----
   function onCardDrag(e) {
     const { cardId, x, y } = e.detail
+    // Carte membre d'une sélection multiple : tout le groupe suit (positions
+    // locales + diffusion groupée aux autres clients).
+    if (selected.has(cardId) && selected.size > 1) {
+      const items = groupItems(cardId, x, y)
+      if (items) {
+        groupDragging = true
+        setGroupDrag(items, cardId)
+        dispatch('dragMany', { items })
+        return
+      }
+    }
     // Position live locale + diffusion aux autres clients (fluidité).
     dispatch('drag', { cardId, x, y })
   }
   function onCardDrop(e) {
     const { cardId, clientX, clientY, x, y } = e.detail
-    e.detail.accepted = resolveDrop(clientX, clientY, cardId, { x, y })
+    if (selected.has(cardId) && selected.size > 1) {
+      e.detail.accepted = resolveGroupDrop(clientX, clientY, cardId, { x, y })
+    } else {
+      e.detail.accepted = resolveDrop(clientX, clientY, cardId, { x, y })
+    }
   }
-  function onCardFlip(e) { dispatch('flip', e.detail) }
+  function onCardFlip(e) {
+    // Double-clic sur une carte de la sélection : toute la sélection se
+    // retourne d'un coup (geste "je retourne ma levée"). Sinon, flip simple.
+    if (selected.has(e.detail.cardId) && selected.size > 1) {
+      dispatch('flipMany', { cardIds: [...selected] })
+    } else {
+      dispatch('flip', e.detail)
+    }
+  }
   function onCardFront(e) { dispatch('front', e.detail) }
   function onCardRotate(e) { dispatch('rotate', e.detail) }
 
@@ -160,18 +318,28 @@
     }
   }
 
-  // ---- Position réelle d'une carte de table (prise en compte du drag live) ----
-  function cardPos(card) {
-    if (liveCardId === card.id) return { x: liveX, y: liveY }
-    return { x: card.x, y: card.y }
+  // ---- Position rendue d'une carte de table ---------------------------------
+  // Priorité : drag groupé local > drag live distant > position serveur.
+  // Dictionnaire dérivé (plutôt qu'une fonction appelée dans le template) pour
+  // que Svelte re-rende dès que l'une des trois sources change.
+  $: posById = derivePositions(table, livePos, groupDrag)
+  function derivePositions(tbl, live, group) {
+    const out = {}
+    for (const c of tbl) out[c.id] = group[c.id] ?? live[c.id] ?? { x: c.x, y: c.y }
+    return out
   }
 </script>
 
 <div class="table-scroll">
+  <!-- svelte-ignore a11y-no-static-element-interactions -->
   <div
     bind:this={tableEl}
     class="table"
     data-drop="table"
+    on:pointerdown={onTablePointerDown}
+    on:pointermove={onTablePointerMove}
+    on:pointerup={onTablePointerUp}
+    on:pointercancel={onTablePointerUp}
   >
     <!-- tapis décoratif -->
     <div class="felt"></div>
@@ -198,18 +366,36 @@
 
     <!-- Cartes sur la table -->
     {#each table as card (card.id)}
-      <div class="card-anchor" style="left:{cardPos(card).x}px; top:{cardPos(card).y}px; z-index:{card.z || 1};">
+      <div class="card-anchor" style="left:{posById[card.id].x}px; top:{posById[card.id].y}px; z-index:{card.z || 1};">
         <Card
           c={card}
           zone="table"
+          selected={selected.has(card.id)}
           on:drag={onCardDrag}
           on:drop={onCardDrop}
           on:flip={onCardFlip}
           on:front={onCardFront}
           on:rotate={onCardRotate}
+          on:toggleselect={onToggleSelect}
         />
       </div>
     {/each}
+
+    <!-- Rectangle de sélection en cours de tracé -->
+    {#if marquee}
+      <div
+        class="marquee"
+        style="left:{Math.min(marquee.x0, marquee.x1)}px; top:{Math.min(marquee.y0, marquee.y1)}px; width:{Math.abs(marquee.x1 - marquee.x0)}px; height:{Math.abs(marquee.y1 - marquee.y0)}px;"
+      ></div>
+    {/if}
+
+    <!-- Badge de sélection multiple -->
+    {#if selected.size > 0}
+      <div class="sel-chip">
+        {selected.size} carte{selected.size > 1 ? 's' : ''} sélectionnée{selected.size > 1 ? 's' : ''}
+        <small>F : retourner · Échap : désélectionner</small>
+      </div>
+    {/if}
   </div>
 </div>
 
@@ -249,6 +435,30 @@
     text-align: center;
   }
   .empty-hint small { display: block; opacity: .7; margin-top: 4px; }
+  .marquee {
+    position: absolute;
+    border: 1.5px dashed rgba(255, 210, 122, 0.9);
+    background: rgba(255, 210, 122, 0.12);
+    border-radius: 4px;
+    pointer-events: none;
+    z-index: 5000;
+  }
+  .sel-chip {
+    position: absolute;
+    top: 14px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0, 0, 0, 0.55);
+    color: #ffd27a;
+    padding: 4px 12px;
+    border-radius: 999px;
+    font-family: system-ui, sans-serif;
+    font-size: .8rem;
+    pointer-events: none;
+    z-index: 5001;
+    white-space: nowrap;
+  }
+  .sel-chip small { color: rgba(255, 255, 255, 0.7); margin-left: 8px; }
   .card-anchor {
     position: absolute;
     transform: translate(-50%, -50%);

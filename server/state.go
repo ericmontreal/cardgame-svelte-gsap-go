@@ -214,6 +214,76 @@ func (e *engine) Move(cardID string, x, y float64) bool {
 	return true
 }
 
+// ---- Mutations par lot (sélection multiple) --------------------------------
+
+// CardMove décrit la position cible d'une carte dans un déplacement groupé.
+type CardMove struct {
+	CardID string
+	X, Y   float64
+}
+
+// MoveMany repositionne un lot de cartes de table (drag groupé terminé) et
+// ramène le groupe au premier plan en préservant l'ordre Z relatif des cartes
+// entre elles : tri par Z courant, puis attribution de Z consécutifs. Sans ce
+// tri, une pile déplacée en bloc verrait ses cartes réordonnées selon l'ordre
+// arbitraire du payload client. Les IDs inconnus, dupliqués ou hors table sont
+// ignorés silencieusement (même tolérance que les mutations mono-carte).
+// Renvoie true si au moins une carte a bougé.
+func (e *engine) MoveMany(items []CardMove) bool {
+	type sel struct {
+		c    *Card
+		x, y float64
+	}
+	var picked []sel
+	seen := map[string]bool{}
+	for _, it := range items {
+		if seen[it.CardID] {
+			continue
+		}
+		seen[it.CardID] = true
+		c := e.findCard(it.CardID)
+		if c == nil || c.Zone != ZoneTable {
+			continue
+		}
+		picked = append(picked, sel{c, it.X, it.Y})
+	}
+	if len(picked) == 0 {
+		return false
+	}
+	sort.SliceStable(picked, func(i, j int) bool { return picked[i].c.Z < picked[j].c.Z })
+	for _, s := range picked {
+		s.c.X, s.c.Y = s.x, s.y
+		s.c.Z = e.nextZ()
+	}
+	return true
+}
+
+// FlipMany retourne un lot de cartes en une seule mutation (table ou main,
+// jamais le sabot — même règle que Flip). Les IDs dupliqués ne sont retournés
+// qu'une fois (un double flip serait un no-op trompeur). Renvoie si quelque
+// chose a changé et l'ensemble des propriétaires de mains impactés, chacun
+// devant recevoir une notification privée (cf. Flip).
+func (e *engine) FlipMany(ids []string) (changed bool, handOwners map[string]bool) {
+	handOwners = map[string]bool{}
+	seen := map[string]bool{}
+	for _, id := range ids {
+		if seen[id] {
+			continue
+		}
+		seen[id] = true
+		c := e.findCard(id)
+		if c == nil || c.Zone == ZoneSabot {
+			continue
+		}
+		c.FaceUp = !c.FaceUp
+		changed = true
+		if c.Zone == ZoneHand {
+			handOwners[c.Owner] = true
+		}
+	}
+	return changed, handOwners
+}
+
 // ---- Transferts entre zones ----------------------------------------------
 
 // DropTarget décrit la cible d'un drag-and-drop.

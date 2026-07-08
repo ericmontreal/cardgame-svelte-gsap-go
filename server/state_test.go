@@ -335,3 +335,101 @@ func TestEnsurePlayerKeepsDistinctSeatAfterReconnect(t *testing.T) {
 		t.Fatalf("alice ne devrait pas reprendre le siège de bob après reconnexion: alice=%+v bob=%+v", pAliceAgain, pBob)
 	}
 }
+
+// ---- Mutations par lot (sélection multiple) --------------------------------
+
+func TestMoveManyPreservesRelativeZOrder(t *testing.T) {
+	// Un groupe déplacé d'un bloc passe au premier plan, mais l'ordre Z
+	// RELATIF de ses cartes doit être préservé (une pile déplacée reste la
+	// même pile), quel que soit l'ordre des items dans le payload client.
+	e := newEngineWithCards(t, 3)
+	var ids []string
+	for i := 0; i < 3; i++ {
+		id, _ := e.DrawSabot(Transfer{Target: TargetTable, X: float64(10 * i), Y: 0})
+		ids = append(ids, id)
+	}
+	// ids[0] a le Z le plus bas, ids[2] le plus haut (tirages successifs).
+	zBefore := map[string]int{}
+	for _, id := range ids {
+		zBefore[id] = e.findCard(id).Z
+	}
+	// Payload volontairement dans un ordre différent de l'ordre Z.
+	ok := e.MoveMany([]CardMove{
+		{CardID: ids[2], X: 300, Y: 300},
+		{CardID: ids[0], X: 100, Y: 100},
+		{CardID: ids[1], X: 200, Y: 200},
+	})
+	if !ok {
+		t.Fatal("MoveMany devrait signaler un changement")
+	}
+	c0, c1, c2 := e.findCard(ids[0]), e.findCard(ids[1]), e.findCard(ids[2])
+	if c0.X != 100 || c1.X != 200 || c2.X != 300 {
+		t.Fatalf("positions inattendues: %v %v %v", c0.X, c1.X, c2.X)
+	}
+	// L'ordre relatif d'avant (c0 < c1 < c2) doit être conservé après.
+	if !(c0.Z < c1.Z && c1.Z < c2.Z) {
+		t.Fatalf("ordre Z relatif non préservé: z0=%d z1=%d z2=%d (avant: %v)", c0.Z, c1.Z, c2.Z, zBefore)
+	}
+	// Et le groupe entier est passé au premier plan.
+	for _, id := range ids {
+		if e.findCard(id).Z <= zBefore[id] {
+			t.Fatalf("la carte %s devrait avoir un Z supérieur à avant", id)
+		}
+	}
+}
+
+func TestMoveManyIgnoresUnknownAndNonTableCards(t *testing.T) {
+	e := newEngineWithCards(t, 2)
+	id, _ := e.DrawSabot(Transfer{Target: TargetTable, X: 5, Y: 5})
+	sabotTop := e.sabot[len(e.sabot)-1]
+	// Lot mixte : une carte valide, une inconnue, une encore au sabot.
+	ok := e.MoveMany([]CardMove{
+		{CardID: "c-inconnue", X: 50, Y: 50},
+		{CardID: sabotTop, X: 60, Y: 60},
+		{CardID: id, X: 70, Y: 70},
+	})
+	if !ok {
+		t.Fatal("MoveMany devrait signaler un changement (une carte valide)")
+	}
+	if c := e.findCard(id); c.X != 70 || c.Y != 70 {
+		t.Fatalf("la carte de table devrait avoir bougé, got (%v,%v)", c.X, c.Y)
+	}
+	if c := e.findCard(sabotTop); c.Zone != ZoneSabot || c.X != 0 {
+		t.Fatalf("une carte du sabot ne doit jamais être déplacée par MoveMany, got %+v", c)
+	}
+	// Lot entièrement invalide : aucun changement signalé.
+	if e.MoveMany([]CardMove{{CardID: "c-inconnue", X: 1, Y: 1}}) {
+		t.Fatal("MoveMany ne devrait rien signaler pour un lot invalide")
+	}
+}
+
+func TestFlipManyFlipsOncePerCardAndReportsHandOwners(t *testing.T) {
+	e := newEngineWithCards(t, 3)
+	onTable, _ := e.DrawSabot(Transfer{Target: TargetTable, X: 5, Y: 5})
+	inHand, _ := e.DrawSabot(Transfer{Target: TargetHand, OwnerID: "u-alice"})
+	sabotTop := e.sabot[len(e.sabot)-1]
+
+	// L'ID de table est dupliqué : il ne doit être retourné qu'UNE fois
+	// (sinon le double flip est un no-op silencieux et trompeur).
+	changed, owners := e.FlipMany([]string{onTable, onTable, inHand, sabotTop})
+	if !changed {
+		t.Fatal("FlipMany devrait signaler un changement")
+	}
+	if c := e.findCard(onTable); !c.FaceUp {
+		t.Fatal("la carte de table devrait être face visible après un seul flip")
+	}
+	if c := e.findCard(inHand); c.FaceUp {
+		t.Fatal("la carte en main (distribuée face visible) devrait être retournée face cachée")
+	}
+	if !owners["u-alice"] || len(owners) != 1 {
+		t.Fatalf("alice devrait être notifiée (sa main a changé), got %v", owners)
+	}
+	if c := e.findCard(sabotTop); c.FaceUp {
+		t.Fatal("une carte du sabot ne doit jamais être retournée")
+	}
+	// Lot sans aucune carte retournable : aucun changement.
+	changed, _ = e.FlipMany([]string{sabotTop, "c-inconnue"})
+	if changed {
+		t.Fatal("FlipMany ne devrait rien signaler pour un lot invalide")
+	}
+}

@@ -139,7 +139,8 @@ export function applyChat(msg) {
   chatLog.update((log) => [...log, entry].slice(-200))
 }
 
-// Carte en cours de déplacement par un autre joueur (drag live). On garde
-// l'ID en clé pour que la vue s'update en temps réel sans toucher au store
-// autoritaire (qui ne change qu'au drop).
-export const liveDrag = writable(null) // { cardId, x, y, who } | null
+// Cartes en cours de déplacement par un autre joueur (drag live, simple ou
+// groupé). Dictionnaire cardId -> {x,y} pour que la vue s'update en temps réel
+// sans toucher au store autoritaire (qui ne change qu'au drop). Chaque message
+// live remplace intégralement le précédent (un seul drag à la fois par table).
+export const liveDrag = writable(null) // { [cardId]: {x,y} } | null

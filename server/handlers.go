@@ -43,6 +43,18 @@ type payloadDrag struct {
 	Y      float64 `json:"y"`
 }
 
+// Plafond d'un lot (moveMany/flipMany) : large (plusieurs jeux de 54 cartes)
+// mais borné pour écarter les payloads démesurés d'un client défectueux.
+const maxBatchSize = 512
+
+type payloadMoveMany struct {
+	Items []payloadCardOp `json:"items"`
+}
+
+type payloadFlipMany struct {
+	CardIDs []string `json:"cardIds"`
+}
+
 type payloadChat struct {
 	Text string `json:"text"`
 }
@@ -222,6 +234,53 @@ func (app *application) handleClientMsg(c *client, room string, m Message) {
 	case "drag":
 		// Drag en cours (flux live, pour la fluidité inter-clients). On ne
 		// verrouille pas l'état : on relaie juste la position aux autres.
+		app.broadcastMsg(room, m, c)
+
+	// --- Opérations par lot (sélection multiple) ---------------------------
+	case "moveMany":
+		// Drag groupé terminé : repositionne un lot de cartes de table en une
+		// mutation atomique, suivie d'UNE seule diffusion d'état (N messages
+		// "move" provoqueraient N diffusions et un état transitoire incohérent).
+		var p payloadMoveMany
+		if err := json.Unmarshal(m.Payload, &p); err != nil {
+			return
+		}
+		if len(p.Items) == 0 || len(p.Items) > maxBatchSize {
+			return
+		}
+		items := make([]CardMove, 0, len(p.Items))
+		for _, it := range p.Items {
+			items = append(items, CardMove{CardID: it.CardID, X: it.X, Y: it.Y})
+		}
+		app.engine.mu.Lock()
+		ok := app.engine.MoveMany(items)
+		app.engine.mu.Unlock()
+		if ok {
+			app.broadcastState(room)
+		}
+
+	case "flipMany":
+		// Retournement groupé (sélection multiple). Comme "flip", chaque
+		// propriétaire de main impactée reçoit sa main à jour en privé.
+		var p payloadFlipMany
+		if err := json.Unmarshal(m.Payload, &p); err != nil {
+			return
+		}
+		if len(p.CardIDs) == 0 || len(p.CardIDs) > maxBatchSize {
+			return
+		}
+		app.engine.mu.Lock()
+		changed, owners := app.engine.FlipMany(p.CardIDs)
+		app.engine.mu.Unlock()
+		if changed {
+			app.broadcastState(room)
+			for owner := range owners {
+				app.sendHand(room, owner)
+			}
+		}
+
+	case "dragMany":
+		// Drag groupé en cours : simple relais live aux autres, comme "drag".
 		app.broadcastMsg(room, m, c)
 
 	case "transfer":
