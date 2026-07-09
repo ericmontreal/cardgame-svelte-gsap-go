@@ -55,6 +55,12 @@ type payloadFlipMany struct {
 	CardIDs []string `json:"cardIds"`
 }
 
+type payloadTransferMany struct {
+	CardIDs []string `json:"cardIds"`
+	Target  string   `json:"target"`
+	OwnerID string   `json:"ownerId,omitempty"`
+}
+
 type payloadChat struct {
 	Text string `json:"text"`
 }
@@ -282,6 +288,38 @@ func (app *application) handleClientMsg(c *client, room string, m Message) {
 	case "dragMany":
 		// Drag groupé en cours : simple relais live aux autres, comme "drag".
 		app.broadcastMsg(room, m, c)
+
+	case "dragEnd":
+		// Drop annulé (relâché hors de toute cible) : rien n'a changé côté
+		// moteur, donc aucune diffusion d'état ne viendra corriger les
+		// positions live que les autres clients suivaient. Ce relais leur
+		// demande d'effacer ces positions et de revenir à l'état serveur.
+		app.broadcastMsg(room, m, c)
+
+	case "transferMany":
+		// Transfert groupé vers une même cible (sabot / avatar / main). Un
+		// lot vers la table passe par moveMany (positions individuelles).
+		var p payloadTransferMany
+		if err := json.Unmarshal(m.Payload, &p); err != nil {
+			return
+		}
+		if len(p.CardIDs) == 0 || len(p.CardIDs) > maxBatchSize {
+			return
+		}
+		app.engine.mu.Lock()
+		res := app.engine.TransferMany(p.CardIDs, DropTarget(p.Target), p.OwnerID)
+		app.engine.mu.Unlock()
+		if res.PublicChanged {
+			app.broadcastState(room)
+		}
+		for owner := range res.HandOwners {
+			app.sendHand(room, owner)
+		}
+		for owner := range res.FromHandOwners {
+			if !res.HandOwners[owner] {
+				app.sendHand(room, owner)
+			}
+		}
 
 	case "transfer":
 		var p payloadTransfer

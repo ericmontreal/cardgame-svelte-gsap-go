@@ -433,3 +433,72 @@ func TestFlipManyFlipsOncePerCardAndReportsHandOwners(t *testing.T) {
 		t.Fatal("FlipMany ne devrait rien signaler pour un lot invalide")
 	}
 }
+
+func TestTransferManyToHandAggregatesOwners(t *testing.T) {
+	e := newEngineWithCards(t, 3)
+	id1, _ := e.DrawSabot(Transfer{Target: TargetTable, X: 10, Y: 10})
+	id2, _ := e.DrawSabot(Transfer{Target: TargetTable, X: 20, Y: 20})
+	res := e.TransferMany([]string{id1, id2}, TargetHand, "u-alice")
+	if !res.PublicChanged {
+		t.Fatal("deux cartes ont quitté la table : l'état public devrait changer")
+	}
+	if !res.HandOwners["u-alice"] || len(res.HandOwners) != 1 {
+		t.Fatalf("alice devrait être l'unique main notifiée, got %v", res.HandOwners)
+	}
+	if h := e.snapshotHand("u-alice"); len(h.Cards) != 2 {
+		t.Fatalf("la main d'alice devrait contenir 2 cartes, en a %d", len(h.Cards))
+	}
+	if st := e.snapshotPublic(); len(st.Table) != 0 {
+		t.Fatalf("la table devrait être vide, contient %d cartes", len(st.Table))
+	}
+}
+
+func TestTransferManyToSabotPreservesPileOrder(t *testing.T) {
+	// Une pile remise au sabot doit garder son ordre : la carte du dessus de
+	// la pile (Z max) finit au sommet du sabot, même si le payload client
+	// l'envoie en premier.
+	e := newEngineWithCards(t, 2)
+	bottom, _ := e.DrawSabot(Transfer{Target: TargetTable, X: 10, Y: 10})
+	top, _ := e.DrawSabot(Transfer{Target: TargetTable, X: 10, Y: 10})
+	e.findCard(top).FaceUp = true // sera remise face cachée par le sabot
+	res := e.TransferMany([]string{top, bottom}, TargetSabot, "")
+	if !res.PublicChanged {
+		t.Fatal("l'état public devrait changer")
+	}
+	if n := len(e.sabot); n != 2 {
+		t.Fatalf("le sabot devrait contenir 2 cartes, en a %d", n)
+	}
+	if got := e.sabot[len(e.sabot)-1]; got != top {
+		t.Fatalf("la carte du dessus de la pile devrait être au sommet du sabot, got %s (attendu %s)", got, top)
+	}
+	if c := e.findCard(top); c.FaceUp {
+		t.Fatal("une carte remise au sabot doit être face cachée")
+	}
+}
+
+func TestTransferManyRejectsTableTargetAndSabotCards(t *testing.T) {
+	e := newEngineWithCards(t, 2)
+	id, _ := e.DrawSabot(Transfer{Target: TargetTable, X: 10, Y: 10})
+	sabotTop := e.sabot[len(e.sabot)-1]
+
+	// Cible table : refusée (les positions individuelles passent par MoveMany).
+	res := e.TransferMany([]string{id}, TargetTable, "")
+	if res.PublicChanged {
+		t.Fatal("TransferMany vers la table devrait être refusé")
+	}
+	if c := e.findCard(id); c.Zone != ZoneTable {
+		t.Fatal("la carte devrait être restée sur la table")
+	}
+	// Une carte encore au sabot est ignorée (son retrait relève de DrawSabot).
+	res = e.TransferMany([]string{sabotTop, id}, TargetHand, "u-bob")
+	if c := e.findCard(sabotTop); c.Zone != ZoneSabot {
+		t.Fatal("une carte du sabot ne doit pas être transférée par TransferMany")
+	}
+	if len(e.sabot) != 1 {
+		t.Fatalf("le sabot ne devrait pas avoir changé, taille=%d", len(e.sabot))
+	}
+	if h := e.snapshotHand("u-bob"); len(h.Cards) != 1 {
+		t.Fatalf("seule la carte de table devrait être dans la main de bob, got %d", len(h.Cards))
+	}
+	_ = res
+}

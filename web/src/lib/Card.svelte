@@ -143,6 +143,13 @@
       // Pas de déplacement réel : remise à zéro immédiate (rien à préserver).
       if (rootEl) gsap.set(rootEl, { x: 0, y: 0 })
       dispatch('dragend', { cardId: c.id, moved: false, clientX: e.clientX, clientY: e.clientY })
+      // Ctrl+clic (ou Cmd sur Mac) sur une carte de table : sélectionne toute
+      // la pile sous cette carte (détection géométrique côté parent). Avec
+      // Shift en plus, la pile s'ajoute à la sélection existante.
+      if ((e.ctrlKey || e.metaKey) && zone === 'table') {
+        dispatch('selectpile', { cardId: c.id, additive: e.shiftKey })
+        return
+      }
       // Shift+clic sur une carte de table : ajoute/retire de la sélection
       // multiple, sans flip ni mise au premier plan (le parent gère l'état).
       if (e.shiftKey && zone === 'table') {

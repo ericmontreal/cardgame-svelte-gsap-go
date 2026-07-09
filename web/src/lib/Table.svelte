@@ -74,6 +74,89 @@
     selected = next
   }
 
+  // Dimensions par défaut d'une carte de table (Table.svelte ne passe pas de
+  // width/height à <Card>). Les cartes sont positionnées par leur centre
+  // (§ card-anchor). Utilisées par l'aimantage, la détection de pile et les
+  // actions groupées.
+  const CARD_W = 92
+  const CARD_H = 128
+
+  // ---- Sélection de pile (Ctrl+clic) ----------------------------------------
+  // Il n'existe pas de notion de pile côté serveur : une pile est un empilement
+  // visuel émergent. On la reconstruit géométriquement, de proche en proche, à
+  // partir de la carte cliquée : toute carte dont le rectangle chevauche
+  // suffisamment celui d'un membre déjà retenu rejoint la pile (composante
+  // connexe). La rotation est ignorée (approximation par rectangles droits).
+  const PILE_OVERLAP_MIN = 0.6 // fraction de surface commune minimale
+
+  function pileAt(cardId) {
+    const start = table.find((c) => c.id === cardId)
+    if (!start) return null
+    const members = new Set([cardId])
+    const queue = [start]
+    while (queue.length) {
+      const cur = queue.pop()
+      for (const other of table) {
+        if (members.has(other.id)) continue
+        const wOv = Math.max(0, CARD_W - Math.abs(cur.x - other.x))
+        const hOv = Math.max(0, CARD_H - Math.abs(cur.y - other.y))
+        if ((wOv * hOv) / (CARD_W * CARD_H) >= PILE_OVERLAP_MIN) {
+          members.add(other.id)
+          queue.push(other)
+        }
+      }
+    }
+    return members
+  }
+
+  function onSelectPile(e) {
+    const pile = pileAt(e.detail.cardId)
+    if (!pile) return
+    selected = e.detail.additive ? new Set([...selected, ...pile]) : pile
+  }
+
+  // ---- Actions groupées : empiler / étaler ------------------------------------
+  // Marges de placement : les cartes restent entières sur la table (pourtour
+  // bois de 80px + demi-carte), cf. dimensions de .table dans les styles.
+  const TABLE_W = 1160
+  const TABLE_H = 800
+  const MARGIN_X = 80 + CARD_W / 2
+  const MARGIN_Y = 80 + CARD_H / 2
+  const clampX = (v) => Math.min(Math.max(v, MARGIN_X), TABLE_W - MARGIN_X)
+  const clampY = (v) => Math.min(Math.max(v, MARGIN_Y), TABLE_H - MARGIN_Y)
+
+  // Empile la sélection en une pile nette au barycentre du groupe. MoveMany
+  // préserve l'ordre Z relatif : la pile garde son ordre de superposition.
+  function stackSelection() {
+    const cards = table.filter((c) => selected.has(c.id))
+    if (cards.length < 2) return
+    const cx = clampX(Math.round(cards.reduce((s, c) => s + c.x, 0) / cards.length))
+    const cy = clampY(Math.round(cards.reduce((s, c) => s + c.y, 0) / cards.length))
+    dispatch('moveMany', { items: cards.map((c) => ({ cardId: c.id, x: cx, y: cy })) })
+  }
+
+  // Étale la sélection en une rangée horizontale centrée sur le barycentre,
+  // ordonnée par Z croissant (la carte du dessus finit à droite). L'espacement
+  // se resserre si la rangée déborderait de la table.
+  function spreadSelection() {
+    const cards = table.filter((c) => selected.has(c.id)).sort((a, b) => a.z - b.z)
+    if (cards.length < 2) return
+    const spacing = Math.min(30, (TABLE_W - 2 * MARGIN_X) / (cards.length - 1))
+    const cx = cards.reduce((s, c) => s + c.x, 0) / cards.length
+    const cy = clampY(Math.round(cards.reduce((s, c) => s + c.y, 0) / cards.length))
+    const x0 = cx - ((cards.length - 1) * spacing) / 2
+    dispatch('moveMany', {
+      items: cards.map((c, i) => ({ cardId: c.id, x: Math.round(clampX(x0 + i * spacing)), y: cy })),
+    })
+  }
+
+  function flipSelection() {
+    if (selected.size > 0) dispatch('flipMany', { cardIds: [...selected] })
+  }
+  function clearSelection() {
+    selected = new Set()
+  }
+
   // Raccourcis de sélection (hors champs de saisie, ex. chat) : Échap vide la
   // sélection, F retourne toutes les cartes sélectionnées d'un coup.
   function onGlobalKey(e) {
@@ -126,13 +209,9 @@
   }
 
   // ---- Aimantage entre cartes proches (placement côte à côte) --------------
-  // Dimensions par défaut d'une carte de table (Table.svelte ne passe pas de
-  // width/height à <Card>, cf. plus bas). Les cartes sont positionnées par
-  // leur centre (§ card-anchor) : deux cartes exactement côte à côte ont donc
-  // leurs centres espacés d'une largeur (horizontalement) ou d'une hauteur
-  // (verticalement) de carte.
-  const CARD_W = 92
-  const CARD_H = 128
+  // Les cartes étant positionnées par leur centre, deux cartes exactement côte
+  // à côte ont leurs centres espacés d'une largeur (horizontalement) ou d'une
+  // hauteur (verticalement) de carte.
   const SNAP_DIST = 22 // px : au-delà, pas d'aimantage (mouvement libre)
 
   // snapPosition ajuste (x,y) pour coller exactement au bord d'une carte
@@ -234,29 +313,45 @@
     groupDrag = gd
   }
 
-  // Drop d'un groupe : uniquement sur le tapis (phase 1). Lâcher un groupe
-  // sur le sabot, un avatar ou la main annule le geste — le transfert groupé
-  // viendra en phase 2. L'aimantage ne s'applique qu'à la carte ancre, le
-  // groupe suivant le même décalage : sinon chaque carte s'aimanterait de son
-  // côté et la disposition relative serait détruite.
+  // Drop d'un groupe. Sur le tapis : déplacement groupé, avec aimantage
+  // appliqué à la carte ancre uniquement (le groupe suit le même décalage,
+  // sinon chaque carte s'aimanterait de son côté et la disposition relative
+  // serait détruite). Sur le sabot, un avatar ou la main : transfert groupé —
+  // toute la sélection change de zone (ramasser une levée, rendre une pile au
+  // sabot, donner plusieurs cartes d'un geste).
   function resolveGroupDrop(clientX, clientY, anchorId, trackedPos) {
     refreshRect()
     groupDragging = false
     const hit = dropAt(clientX, clientY, { tableRect })
-    if (!hit || hit.target !== TARGETS.TABLE) {
+    if (!hit) {
       groupDrag = {}
       return false
     }
-    const pos = trackedPos ?? hit
-    const snapped = snapPosition(pos.x, pos.y, selected)
-    const items = groupItems(anchorId, snapped.x, snapped.y)
-    if (!items) {
-      groupDrag = {}
-      return false
+    switch (hit.target) {
+      case TARGETS.TABLE: {
+        const pos = trackedPos ?? hit
+        const snapped = snapPosition(pos.x, pos.y, selected)
+        const items = groupItems(anchorId, snapped.x, snapped.y)
+        if (!items) {
+          groupDrag = {}
+          return false
+        }
+        setGroupDrag(items, anchorId)
+        dispatch('moveMany', { items })
+        return true
+      }
+      case TARGETS.SABOT:
+        dispatch('transferMany', { cardIds: [...selected], target: TARGETS.SABOT })
+        return true
+      case TARGETS.AVATAR:
+        dispatch('transferMany', { cardIds: [...selected], target: TARGETS.AVATAR, ownerId: hit.ownerId })
+        return true
+      case TARGETS.HAND:
+        dispatch('transferMany', { cardIds: [...selected], target: TARGETS.HAND, ownerId: myUserId })
+        return true
     }
-    setGroupDrag(items, anchorId)
-    dispatch('moveMany', { items })
-    return true
+    groupDrag = {}
+    return false
   }
 
   // ---- Handlers des cartes de table ----
@@ -283,6 +378,11 @@
     } else {
       e.detail.accepted = resolveDrop(clientX, clientY, cardId, { x, y })
     }
+    // Drop annulé (hors de toute cible) : les autres clients suivaient le
+    // drag en live et garderaient sinon les cartes figées à la dernière
+    // position survolée (aucune diffusion d'état ne viendra les corriger,
+    // rien n'a changé côté serveur). On leur demande d'effacer le live.
+    if (!e.detail.accepted) dispatch('dragEnd', {})
   }
   function onCardFlip(e) {
     // Double-clic sur une carte de la sélection : toute la sélection se
@@ -377,6 +477,7 @@
           on:front={onCardFront}
           on:rotate={onCardRotate}
           on:toggleselect={onToggleSelect}
+          on:selectpile={onSelectPile}
         />
       </div>
     {/each}
@@ -389,11 +490,16 @@
       ></div>
     {/if}
 
-    <!-- Badge de sélection multiple -->
+    <!-- Badge + actions de sélection multiple -->
     {#if selected.size > 0}
       <div class="sel-chip">
-        {selected.size} carte{selected.size > 1 ? 's' : ''} sélectionnée{selected.size > 1 ? 's' : ''}
-        <small>F : retourner · Échap : désélectionner</small>
+        <span>{selected.size} carte{selected.size > 1 ? 's' : ''}</span>
+        {#if selected.size > 1}
+          <button title="Regrouper la sélection en une pile" on:click={stackSelection}>Empiler</button>
+          <button title="Disposer la sélection en rangée" on:click={spreadSelection}>Étaler</button>
+        {/if}
+        <button title="Retourner toutes les cartes sélectionnées (F)" on:click={flipSelection}>Retourner</button>
+        <button title="Désélectionner (Échap)" on:click={clearSelection}>✕</button>
       </div>
     {/if}
   </div>
@@ -448,17 +554,28 @@
     top: 14px;
     left: 50%;
     transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 6px;
     background: rgba(0, 0, 0, 0.55);
     color: #ffd27a;
-    padding: 4px 12px;
+    padding: 4px 8px 4px 12px;
     border-radius: 999px;
     font-family: system-ui, sans-serif;
     font-size: .8rem;
-    pointer-events: none;
     z-index: 5001;
     white-space: nowrap;
   }
-  .sel-chip small { color: rgba(255, 255, 255, 0.7); margin-left: 8px; }
+  .sel-chip button {
+    border: 1px solid rgba(255, 210, 122, 0.4);
+    background: rgba(255, 210, 122, 0.12);
+    color: #ffd27a;
+    padding: 2px 9px;
+    border-radius: 999px;
+    font-size: .75rem;
+    cursor: pointer;
+  }
+  .sel-chip button:hover { background: rgba(255, 210, 122, 0.28); }
   .card-anchor {
     position: absolute;
     transform: translate(-50%, -50%);

@@ -284,6 +284,52 @@ func (e *engine) FlipMany(ids []string) (changed bool, handOwners map[string]boo
 	return changed, handOwners
 }
 
+// BatchTransferResult agrège l'issue d'un transfert groupé à diffuser.
+type BatchTransferResult struct {
+	PublicChanged  bool
+	HandOwners     map[string]bool // mains ayant gagné des cartes (notif ciblée)
+	FromHandOwners map[string]bool // mains ayant perdu des cartes (notif ciblée)
+}
+
+// TransferMany transfère un lot de cartes vers une même cible (sabot, avatar
+// ou main) en une seule mutation. Un lot vers la TABLE est refusé : les
+// positions sont individuelles, c'est le rôle de MoveMany. Les cartes sont
+// traitées par Z croissant : remettre une pile dans le sabot conserve ainsi
+// son ordre (la carte du dessus de la pile finit au sommet du sabot), quel
+// que soit l'ordre du payload client. Les cartes encore au sabot sont
+// exclues : leur retrait de e.sabot n'est géré que par DrawSabot.
+func (e *engine) TransferMany(ids []string, target DropTarget, ownerID string) BatchTransferResult {
+	res := BatchTransferResult{HandOwners: map[string]bool{}, FromHandOwners: map[string]bool{}}
+	if target == TargetTable {
+		return res
+	}
+	seen := map[string]bool{}
+	var picked []*Card
+	for _, id := range ids {
+		if seen[id] {
+			continue
+		}
+		seen[id] = true
+		c := e.findCard(id)
+		if c == nil || c.Zone == ZoneSabot {
+			continue
+		}
+		picked = append(picked, c)
+	}
+	sort.SliceStable(picked, func(i, j int) bool { return picked[i].Z < picked[j].Z })
+	for _, c := range picked {
+		r := e.applyTransfer(c, c.Zone, Transfer{CardID: c.ID, Target: target, OwnerID: ownerID}, false)
+		res.PublicChanged = res.PublicChanged || r.PublicChanged
+		if r.HandOwner != "" {
+			res.HandOwners[r.HandOwner] = true
+		}
+		if r.FromHandOwner != "" {
+			res.FromHandOwners[r.FromHandOwner] = true
+		}
+	}
+	return res
+}
+
 // ---- Transferts entre zones ----------------------------------------------
 
 // DropTarget décrit la cible d'un drag-and-drop.

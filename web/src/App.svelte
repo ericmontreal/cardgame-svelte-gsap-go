@@ -91,6 +91,11 @@
         }
         break
       }
+      case 'dragEnd':
+        // Drop annulé par un autre joueur : ses cartes reviennent à leur
+        // position serveur (efface les positions live résiduelles).
+        liveDrag.set(null)
+        break
     }
   }
 
@@ -118,6 +123,11 @@
   function sendMoveMany(e) { ws?.sendMoveMany(e.detail.items) }
   function sendFlipMany(e) { ws?.sendFlipMany(e.detail.cardIds) }
   function sendDragMany(e) { ws?.sendDragMany(e.detail.items) }
+  function sendTransferMany(e) {
+    const d = e.detail
+    ws?.sendTransferMany(d.cardIds, d.target, d.ownerId ?? '')
+  }
+  function sendDragEnd() { ws?.sendDragEnd() }
   function sendFlip(e)    { ws?.sendFlip(e.detail.cardId) }
   function sendFront(e)   { ws?.sendFront(e.detail.cardId) }
   function sendTransfer(e) {
@@ -222,6 +232,8 @@
           on:moveMany={sendMoveMany}
           on:flipMany={sendFlipMany}
           on:dragMany={sendDragMany}
+          on:transferMany={sendTransferMany}
+          on:dragEnd={sendDragEnd}
           on:flip={sendFlip}
           on:front={sendFront}
           on:transfer={sendTransfer}
