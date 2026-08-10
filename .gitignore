@@ -15,6 +15,13 @@ server/server
 .env.*
 !.env.example
 
+# Comptes joueurs : identifiants et codes en clair. Seul users.txt.example est
+# suivi, et il ne doit contenir que des exemples. C'est l'absence de cette regle
+# qui a conduit a saisir la liste reelle des joueurs dans le fichier d'exemple,
+# lui-meme suivi par git.
+users.txt
+server/users.txt
+
 # Éditeurs / OS
 .DS_Store
 *.log
