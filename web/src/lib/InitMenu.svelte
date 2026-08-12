@@ -8,7 +8,6 @@
   import { createEventDispatcher } from 'svelte'
   import { loadDeckConfig, saveDeckConfig, clearDeckConfig } from './store.js'
 
-  export let seedHint = ''
   const dispatch = createEventDispatcher()
 
   // ---- Valeurs par défaut (jeu classique 52 cartes) ----
@@ -169,7 +168,6 @@
         Ouvrir la table
       </button>
     </div>
-    {#if seedHint}<p class="hint">{seedHint}</p>{/if}
   </div>
 </div>
 
@@ -228,5 +226,4 @@
   }
   .start:hover:not(:disabled) { background: #36b46f; }
   .start:disabled { opacity: .5; cursor: not-allowed; }
-  .hint { color: #9fbfb0; margin: .7rem 0 0; font-size: .78rem; line-height: 1.3; }
 </style>

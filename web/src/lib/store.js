@@ -59,6 +59,32 @@ export function clearDeckConfig() {
   localStorage.removeItem(DECK_CONFIG_KEY)
 }
 
+// ---- Dernier identifiant saisi (confort de reconnexion) ------------------
+//
+// localStorage et non sessionStorage, contrairement au token ci-dessus : le
+// but est justement de survivre à la fermeture du navigateur. Seul le nom est
+// conservé, jamais le mot de passe, et il n'est enregistré qu'après une
+// connexion réussie — une faute de frappe ne se réinstalle donc pas.
+//
+// Conséquence assumée : ouvrir une seconde fenêtre pour jouer un autre compte
+// pré-remplit le nom du premier. Le champ reste modifiable, et rien n'est
+// connecté automatiquement.
+
+const LAST_USER_KEY = 'cardgame.lastUsername'
+
+export function loadLastUsername() {
+  try {
+    return localStorage.getItem(LAST_USER_KEY) || ''
+  } catch {}
+  return ''
+}
+
+export function saveLastUsername(name) {
+  try {
+    localStorage.setItem(LAST_USER_KEY, name)
+  } catch {}
+}
+
 // ---- Auth : POST /api/login ----------------------------------------------
 
 export async function login(username, password) {

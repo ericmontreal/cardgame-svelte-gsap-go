@@ -32,8 +32,9 @@
   // près d'une autre pour un placement côte à côte facile (§ Table.svelte).
   let snapEnabled = true
 
-  // Aide de connexion : comptes démo si USERS_SEED non défini côté serveur.
-  const SEED_HINT = 'Comptes démo : alice/secret, bob/secret'
+  // Aucune aide de connexion n'est affichée : les comptes alice/bob n'existent
+  // que si le serveur est lancé avec ALLOW_DEMO_USERS=1, ce qui n'est jamais le
+  // cas en service. L'indication envoyait donc les joueurs sur un 401.
 
   // ---- Client WebSocket ----
   let ws = null
@@ -188,13 +189,13 @@
 
 <main class="app">
   {#if step === 'auth'}
-    <Login seedHint={SEED_HINT} on:success={onLoginSuccess} />
+    <Login on:success={onLoginSuccess} />
 
   {:else if step === 'connecting'}
     <div class="connecting">Connexion à la table…</div>
 
   {:else if step === 'init'}
-    <InitMenu seedHint={SEED_HINT} on:start={onInitStart} />
+    <InitMenu on:start={onInitStart} />
 
   {:else}
     <div class="layout">

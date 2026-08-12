@@ -2,12 +2,12 @@
   // Formulaire d'authentification (§10) : utilisateurs préenregistrés.
   // Aucune création de compte dynamique.
   import { createEventDispatcher } from 'svelte'
-  import { login } from './store.js'
-
-  export let seedHint = ''  // texte d'aide affiché sous le form (ex. comptes démo)
+  import { login, loadLastUsername, saveLastUsername } from './store.js'
 
   const dispatch = createEventDispatcher()
-  let username = ''
+  // Le champ s'ouvre sur le dernier identifiant connecté avec succès. Sans
+  // historique, il reste vide et c'est le texte d'invite qui s'affiche.
+  let username = loadLastUsername()
   let password = ''
   let error = ''
   let busy = false
@@ -22,6 +22,7 @@
     busy = true
     try {
       const session = await login(username.trim(), password)
+      saveLastUsername(username.trim())
       dispatch('success', session)
     } catch (err) {
       error = err.message || 'Échec de connexion'
@@ -43,7 +44,7 @@
         bind:value={username}
         autocomplete="username"
         spellcheck="false"
-        placeholder="alice"
+        placeholder="Tapez ici votre identifiant"
         disabled={busy}
       />
     </label>
@@ -54,7 +55,7 @@
         type="password"
         bind:value={password}
         autocomplete="current-password"
-        placeholder="••••••"
+        placeholder="Tapez ici votre mot de passe"
         disabled={busy}
       />
     </label>
@@ -66,10 +67,6 @@
     <button type="submit" disabled={busy}>
       {busy ? 'Connexion…' : 'Se connecter'}
     </button>
-
-    {#if seedHint}
-      <p class="hint">{seedHint}</p>
-    {/if}
   </form>
 </div>
 
@@ -108,5 +105,4 @@
   button:hover:not(:disabled) { background: #36b46f; }
   button:disabled { opacity: .6; cursor: progress; }
   .error { color: #ff9a9a; margin: 0; font-size: .85rem; }
-  .hint { color: #9fbfb0; margin: .5rem 0 0; font-size: .78rem; line-height: 1.3; }
 </style>
