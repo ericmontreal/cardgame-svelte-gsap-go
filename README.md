@@ -96,6 +96,30 @@ L'asset `web/public/cards.svg` est **SVG-cards 2.0.1** © 2005 David Bellot,
 distribué sous **GNU LGPL** (voir l'en-tête du fichier). Il reste régi par sa
 propre licence quelle que soit la licence du code du projet.
 
+**Ce fichier a été modifié** par rapport à l'original, le 2026-08-12 : ses 324
+attributs `style="fill:…"` ont été convertis en attributs de présentation
+`fill="…"`, sans autre changement. Le rendu est identique ; la raison est une
+contrainte de sécurité expliquée ci-dessous. La LGPL autorise cette
+modification, à condition qu'elle soit signalée — c'est l'objet de ce
+paragraphe.
+
+## Contrainte de sécurité — pas de style en ligne dans le sprite
+
+Le sprite est injecté dans la page par `innerHTML` (`web/src/lib/svg-sprite.js`).
+Ses attributs `style=` deviennent donc des **styles en ligne**, que refuse toute
+CSP dépourvue de `style-src 'unsafe-inline'`. Le symptôme observé en production
+était des cartes entièrement noires à bordure blanche, **sous Firefox
+uniquement** : Gecko applique la règle là où Blink la laisse passer, et
+l'absence de remplissage fait retomber les formes sur le noir par défaut.
+
+Un attribut de présentation — `fill="#e6180a"` — n'est pas un style en ligne et
+échappe entièrement à la CSP. C'est pourquoi le sprite n'en contient plus aucun.
+
+**Si vous remplacez `cards.svg` par une autre version, convertissez ses
+attributs `style=` avant de la mettre en service**, sinon la panne revient, et
+elle revient en silence : les deux `catch` de `svg-sprite.js` n'écrivent rien
+tant que `VERBOSE` vaut `false`.
+
 ## À faire côté jeu
 - Logique d’état autoritaire côté serveur (distribution, tours, règles).
 - Messages structurés (join/leave/action/state) — le squelette de convention est
