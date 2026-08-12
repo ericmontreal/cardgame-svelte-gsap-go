@@ -3,8 +3,9 @@
 # Prérequis :
 #   1. Créer server/users.txt (voir server/users.txt.example), une ligne
 #      "nom:motdepasse" par compte.
-#   2. Définir ALLOWED_ORIGINS avec l'URL publique du jeu, par exemple :
-#        ALLOWED_ORIGINS=http://192.168.1.50:8090 docker compose up -d --build
+#   2. Définir ALLOWED_ORIGINS avec l'URL publique du jeu — REMPLACEZ PAR LA
+#      VÔTRE, aucune adresse réelle n'est inscrite ici :
+#        ALLOWED_ORIGINS=https://votre-domaine.exemple docker compose up -d --build
 #      ou via un fichier .env à côté de ce fichier.
 services:
   server:

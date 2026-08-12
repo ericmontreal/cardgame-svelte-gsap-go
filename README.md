@@ -77,9 +77,10 @@ npm test
 ## Sécurité — origines autorisées
 Le serveur restreint l'en-tête `Origin` du WebSocket (anti-CSWSH). En dev, les
 origines Vite locales sont acceptées. En production, définissez la variable
-d'environnement `ALLOWED_ORIGINS` (origines séparées par des virgules) :
+d'environnement `ALLOWED_ORIGINS` (origines séparées par des virgules).
+Remplacez le domaine ci-dessous par le vôtre — ce dépôt n'en publie aucun :
 ```bash
-ALLOWED_ORIGINS="https://cardgame.example.com" go run .
+ALLOWED_ORIGINS="https://votre-domaine.exemple" go run .
 ```
 
 ### Important — Sprite SVG

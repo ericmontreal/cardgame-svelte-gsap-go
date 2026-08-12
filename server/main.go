@@ -28,7 +28,7 @@ var upgrader = websocket.Upgrader{
 // allowedOrigins renvoie la liste blanche des origines autorisées pour le
 // WebSocket (protection CSWSH). En dev, on autorise les origines locales du
 // front Vite. En production, définir ALLOWED_ORIGINS (séparées par des
-// virgules), par ex. "https://cardgame.example.com".
+// virgules), avec votre propre domaine — aucun n'est inscrit dans ce depot.
 func allowedOrigins() map[string]bool {
 	out := map[string]bool{}
 	for _, o := range []string{

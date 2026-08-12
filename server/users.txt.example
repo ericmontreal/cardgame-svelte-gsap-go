@@ -5,5 +5,10 @@
 # lancer le serveur avec USERS_FILE=/chemin/vers/users.txt
 # Sur le serveur Ubuntu, protégez le fichier :  chmod 600 users.txt
 #
-# alice:motdepasse-alice
-# bob:motdepasse-bob
+# Ce fichier ne contient volontairement AUCUN compte, pas même fictif : il sert
+# de gabarit et rien de plus. La liste réelle vit dans users.txt, que .gitignore
+# exclut du suivi et qui ne doit jamais être versionné.
+#
+# Une ligne sans mot de passe est ignorée en silence par le serveur : le compte
+# n'existe alors pas, et la personne qui saisit son identifiant reçoit un 401
+# sans explication.
