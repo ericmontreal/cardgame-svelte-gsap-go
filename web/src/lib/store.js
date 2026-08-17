@@ -85,6 +85,27 @@ export function saveLastUsername(name) {
   } catch {}
 }
 
+// ---- Chat replié ou non (préférence locale) ------------------------------
+//
+// Conservée d'une session à l'autre : un joueur qui joue sur petit écran replie
+// le chat une fois, pas à chaque partie. Purement locale, jamais envoyée au
+// serveur — chacun voit la table comme il l'entend.
+
+const CHAT_HIDDEN_KEY = 'cardgame.chatHidden'
+
+export function loadChatHidden() {
+  try {
+    return localStorage.getItem(CHAT_HIDDEN_KEY) === '1'
+  } catch {}
+  return false
+}
+
+export function saveChatHidden(hidden) {
+  try {
+    localStorage.setItem(CHAT_HIDDEN_KEY, hidden ? '1' : '0')
+  } catch {}
+}
+
 // ---- Auth : POST /api/login ----------------------------------------------
 
 export async function login(username, password) {
