@@ -54,22 +54,30 @@ type Player struct {
 	// elles-mêmes : la main reste privée). Recalculé à chaque snapshot
 	// public, cf. snapshotPublic — ne pas alimenter ce champ ailleurs.
 	HandCount int `json:"handCount"`
+	// Abandoned marque un joueur qui a QUITTÉ la partie, par opposition à une
+	// simple absence. Sa chaise reste affichée, grisée : les autres joueurs
+	// voient que la place est vide pour de bon. Un joueur absent, lui, est
+	// retiré de la liste et son avatar disparaît le temps de son retour.
+	Abandoned bool `json:"abandoned"`
 }
 
 // ---- Engine ---------------------------------------------------------------
 
 // engine détient l'état autoritaire et sérialise toutes les mutations.
 type engine struct {
-	mu        sync.Mutex
-	cards     []Card              // toutes les cartes (maître)
-	sabot     []string            // IDs empilés dans le sabot (fond -> sommet)
-	players   map[string]*Player  // userID -> Player (connectés)
-	nextSeat  int                 // compteur d'arrivée, jamais réutilisé (voir ensurePlayer)
-	zTop      int                 // compteur d'ordre Z (croissant = devant)
+	mu      sync.Mutex
+	cards   []Card             // toutes les cartes (maître)
+	sabot   []string           // IDs empilés dans le sabot (fond -> sommet)
+	players map[string]*Player // userID -> Player (connectés)
+	// seats retient le siège attribué à chaque joueur, y compris après son
+	// départ. Cette mémoire est ce qui permet de retrouver sa chaise en
+	// revenant : voir ensurePlayer.
+	seats map[string]int // userID -> indice de siège
+	zTop  int            // compteur d'ordre Z (croissant = devant)
 }
 
 func newEngine() *engine {
-	return &engine{players: map[string]*Player{}}
+	return &engine{players: map[string]*Player{}, seats: map[string]int{}}
 }
 
 // ---- Player management ----------------------------------------------------
@@ -77,21 +85,56 @@ func newEngine() *engine {
 // ensurePlayer ajoute le joueur s'il est nouveau et renvoie sa fiche. La
 // position de l'avatar est calculée autour de la table (répartie angulairement).
 //
-// Le siège utilise un compteur d'arrivée qui ne fait que croître (nextSeat),
-// jamais le nombre de joueurs actuellement connectés (len(e.players)) : sinon
-// un joueur qui se déconnecte puis se reconnecte reprend le même index qu'un
-// autre joueur toujours présent, et les deux avatars se superposent
-// exactement à l'écran (l'un masque totalement l'autre).
+// Le siège est ATTRIBUÉ UNE FOIS PAR COMPTE et conservé dans e.seats, y compris
+// pendant que le joueur est absent. Deux défauts successifs l'imposent :
+//
+//  1. avec le nombre de joueurs connectés (len(e.players)) comme index, un
+//     joueur qui revenait reprenait le siège d'un joueur resté présent, et les
+//     deux avatars se superposaient exactement.
+//  2. avec un compteur d'arrivée qui ne faisait que croître, le défaut inverse
+//     apparaissait : rafraîchir sa page change de chaise. Fermer l'onglet ferme
+//     la WebSocket, la dernière connexion du compte disparaît et le Player est
+//     retiré (cf. main.go) ; en revenant, le joueur recevait le siège suivant,
+//     et faisait le tour de la table en six rafraîchissements.
+//
+// Retenir le siège par userID règle les deux : l'index ne dépend plus de qui est
+// connecté à cet instant. La mémoire vit en RAM, comme le reste de l'état — un
+// redémarrage du serveur rebat les places, ce qui est cohérent avec l'absence
+// assumée de persistance.
 func (e *engine) ensurePlayer(userID, name string, tableW, tableH float64) *Player {
 	if p, ok := e.players[userID]; ok {
 		p.Name = name
+		// Un joueur qui avait abandonné et qui revient reprend place pour de
+		// bon : sa chaise cesse d'être grisée. Sa main, elle, ne revient pas —
+		// ses cartes sont reparties sur le tapis ou au fond du sabot.
+		p.Abandoned = false
 		return p
 	}
+	seat, known := e.seats[userID]
+	if !known {
+		seat = e.freeSeat()
+		e.seats[userID] = seat
+	}
 	p := &Player{UserID: userID, Name: name}
-	e.layoutAvatar(p, e.nextSeat, tableW, tableH)
-	e.nextSeat++
+	e.layoutAvatar(p, seat, tableW, tableH)
 	e.players[userID] = p
 	return p
+}
+
+// freeSeat renvoie le plus petit indice de siège qu'aucun compte connu ne s'est
+// déjà vu attribuer. On balaie les sièges attribués, et non les seuls joueurs
+// connectés : sinon un joueur absent se verrait voler sa chaise pendant qu'il
+// recharge sa page, et la retrouverait occupée en revenant.
+func (e *engine) freeSeat() int {
+	taken := make(map[int]bool, len(e.seats))
+	for _, s := range e.seats {
+		taken[s] = true
+	}
+	for i := 0; ; i++ {
+		if !taken[i] {
+			return i
+		}
+	}
 }
 
 // layoutAvatar place un avatar autour de la table selon son rang d'arrivée.
@@ -117,8 +160,166 @@ func (e *engine) layoutAvatar(p *Player, index int, w, h float64) {
 	p.AY = cy + ry*math.Sin(a)
 }
 
+// removePlayer retire le joueur de la liste des connectés. Son siège reste
+// réservé dans e.seats : c'est précisément ce qui lui rend sa chaise au retour
+// (cf. ensurePlayer). Ne pas y ajouter de delete sur e.seats.
+//
+// Un joueur ayant abandonné fait exception : il reste dans e.players pour que
+// sa chaise continue d'apparaître, grisée. Sans cela, la fermeture de sa
+// WebSocket — qui suit immédiatement son abandon — effacerait la trace de son
+// départ, et les autres joueurs ne verraient qu'un avatar disparu, exactement
+// comme pour une absence passagère.
 func (e *engine) removePlayer(userID string) {
+	if p, ok := e.players[userID]; ok && p.Abandoned {
+		return
+	}
 	delete(e.players, userID)
+}
+
+// ---- Abandon de partie ----------------------------------------------------
+
+// AbandonPolicy décide du sort de la main d'un joueur qui quitte la partie.
+// Le choix appartient au partant, qui le fait au moment de quitter ; ce n'est
+// pas un réglage de table. Aucune des deux options ne révèle ses cartes : un
+// joueur qui part ne doit pas donner d'information à ceux qui restent.
+type AbandonPolicy string
+
+const (
+	// AbandonToTable étale la main, face cachée, devant la chaise du partant.
+	// Les cartes restent en jeu et visibles de tous, comme un joueur qui pose
+	// son jeu et se lève.
+	AbandonToTable AbandonPolicy = "table"
+	// AbandonToSabot remet la main au FOND du sabot. Les cartes retournent au
+	// jeu sans que personne ne sache lesquelles, et ne ressortiront qu'une fois
+	// tout le reste du sabot épuisé.
+	AbandonToSabot AbandonPolicy = "sabot"
+)
+
+// normalizeAbandonPolicy retombe sur le dépôt sur tapis pour toute valeur
+// inconnue : c'est la moins destructrice des deux (les cartes restent
+// atteignables, là où le fond du sabot les enfouit).
+func normalizeAbandonPolicy(raw string) AbandonPolicy {
+	if AbandonPolicy(raw) == AbandonToSabot {
+		return AbandonToSabot
+	}
+	return AbandonToTable
+}
+
+// Abandon fait quitter la partie au joueur : sa main part selon le choix qu'il
+// vient de faire, et sa chaise reste affichée en grisé. À la différence d'une
+// déconnexion, l'opération est irréversible — revenir ne rend pas les cartes.
+// Renvoie false si le joueur n'est pas à table.
+func (e *engine) Abandon(userID string, policy AbandonPolicy) bool {
+	p, ok := e.players[userID]
+	if !ok {
+		return false
+	}
+	var hand []*Card
+	for i := range e.cards {
+		if e.cards[i].Zone == ZoneHand && e.cards[i].Owner == userID {
+			hand = append(hand, &e.cards[i])
+		}
+	}
+	switch policy {
+	case AbandonToSabot:
+		e.sendToSabotBottom(hand)
+	default:
+		e.abandonToTable(hand, p)
+	}
+	p.Abandoned = true
+	return true
+}
+
+// sendToSabotBottom renvoie des cartes au FOND du sabot. e.sabot est ordonné du
+// fond (index 0) vers le sommet : on préfixe donc, au lieu d'ajouter comme le
+// fait un dépôt ordinaire sur le sabot.
+//
+// Le lot est inséré d'un bloc, et non carte par carte : préfixer en boucle
+// inverserait l'ordre du paquet. Servi aussi bien par l'abandon que par
+// l'action « Au fond du sabot » de la sélection multiple.
+func (e *engine) sendToSabotBottom(cards []*Card) {
+	if len(cards) == 0 {
+		return
+	}
+	ids := make([]string, 0, len(cards))
+	for _, c := range cards {
+		c.Zone = ZoneSabot
+		c.Owner = ""
+		c.FaceUp = false
+		c.X, c.Y, c.Z, c.Rotate = 0, 0, 0, 0
+		ids = append(ids, c.ID)
+	}
+	e.sabot = append(ids, e.sabot...)
+}
+
+// TransferManyToSabotBottom enfouit un lot de cartes de table sous le sabot.
+// Symétrique de TransferMany vers le sabot, qui les empile au sommet : ici on
+// veut qu'elles ne ressortent qu'en dernier. Les cartes sont traitées par Z
+// croissant pour que l'ordre d'une pile enfouie soit préservé. Les IDs inconnus,
+// dupliqués ou déjà au sabot sont ignorés, comme ailleurs. Renvoie l'ensemble
+// des mains impactées, à notifier en privé.
+func (e *engine) TransferManyToSabotBottom(ids []string) (changed bool, fromHands map[string]bool) {
+	fromHands = map[string]bool{}
+	seen := map[string]bool{}
+	var picked []*Card
+	for _, id := range ids {
+		if seen[id] {
+			continue
+		}
+		seen[id] = true
+		c := e.findCard(id)
+		if c == nil || c.Zone == ZoneSabot {
+			continue
+		}
+		if c.Zone == ZoneHand {
+			fromHands[c.Owner] = true
+		}
+		picked = append(picked, c)
+	}
+	if len(picked) == 0 {
+		return false, fromHands
+	}
+	sort.SliceStable(picked, func(i, j int) bool { return picked[i].Z < picked[j].Z })
+	e.sendToSabotBottom(picked)
+	return true, fromHands
+}
+
+// abandonToTable étale la main face cachée devant la chaise du partant, pour
+// qu'on voie d'où elle vient. La rangée est centrée sur l'avatar puis ramenée
+// dans le feutre : les sièges sont calculés sur le pourtour bois, donc en
+// dehors de la zone où une carte a le droit d'être posée.
+func (e *engine) abandonToTable(cards []*Card, p *Player) {
+	n := len(cards)
+	if n == 0 {
+		return
+	}
+	spacing := abandonSpacing
+	if n > 1 {
+		if fit := (maxCardX - minCardX) / float64(n-1); fit < spacing {
+			spacing = fit
+		}
+	}
+	x0 := p.AX - (float64(n-1)*spacing)/2 - cardW/2
+	y := clampF(p.AY-cardH/2, minCardY, maxCardY)
+	for i, c := range cards {
+		c.Zone = ZoneTable
+		c.Owner = ""
+		c.FaceUp = false // un abandon ne révèle jamais le jeu du partant
+		c.Rotate = 0
+		c.X = clampF(x0+float64(i)*spacing, minCardX, maxCardX)
+		c.Y = y
+		c.Z = e.nextZ()
+	}
+}
+
+func clampF(v, lo, hi float64) float64 {
+	if v < lo {
+		return lo
+	}
+	if v > hi {
+		return hi
+	}
+	return v
 }
 
 // ---- State init (sabot) ---------------------------------------------------
@@ -128,6 +329,13 @@ func (e *engine) removePlayer(userID string) {
 // aucun mélange/distribution "intelligent", les cartes sont simplement placées
 // dans le sabot dans l'ordre reçu.
 func (e *engine) LoadDeck(cards []Card) {
+	// Nouvelle partie : les chaises grisées des joueurs partis disparaissent.
+	// Elles marquaient un abandon dans la partie précédente, qui n'a plus cours.
+	for id, p := range e.players {
+		if p.Abandoned {
+			delete(e.players, id)
+		}
+	}
 	e.cards = make([]Card, len(cards))
 	e.sabot = make([]string, 0, len(cards))
 	for i, c := range cards {
@@ -402,6 +610,13 @@ func (e *engine) applyTransfer(c *Card, fromZone Zone, t Transfer, dealt bool) T
 	case TargetAvatar, TargetHand:
 		// table→avatar / hand→hand / hand→avatar : carte vers la main privée.
 		if t.OwnerID == "" {
+			return TransferResult{}
+		}
+		// On ne donne pas de carte à un joueur parti : sa main n'a plus de
+		// destinataire, et la carte disparaîtrait du tapis sans que personne
+		// puisse la reprendre. Le client lui retire déjà sa qualité de cible,
+		// mais c'est le serveur qui fait autorité.
+		if dst, ok := e.players[t.OwnerID]; ok && dst.Abandoned {
 			return TransferResult{}
 		}
 		c.Zone = ZoneHand

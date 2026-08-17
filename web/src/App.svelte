@@ -7,7 +7,7 @@
   import {
     tableState, myHand, wsStatus,
     applyState, applyHand, applyChat, liveDrag,
-    loadSession, saveSession, clearSession, resetLocal, login,
+    loadSession, saveSession, clearSession, resetLocal, login, isSessionValid,
   } from './lib/store.js'
   import { createWsClient } from './lib/ws-client.js'
   import { ensureInlineSprite } from './lib/svg-sprite.js'
@@ -41,8 +41,26 @@
   let unsubMsg = null
   let unsubStatus = null
 
+  // L'écran d'attente devient sans issue si la table ne répond jamais : on y
+  // fait apparaître une porte de sortie au bout de quelques secondes.
+  let stuck = false
+  let stuckTimer = null
+  const STUCK_AFTER_MS = 6000
+
+  function armStuckTimer() {
+    clearTimeout(stuckTimer)
+    stuck = false
+    stuckTimer = setTimeout(() => { stuck = true }, STUCK_AFTER_MS)
+  }
+
+  function backToLogin() {
+    errorMsg = 'La connexion à la table a échoué. Reconnectez-vous.'
+    logout()
+  }
+
   function connectWs() {
     if (ws) return
+    armStuckTimer()
     ws = createWsClient({ token: session.token })
     unsubMsg = ws.on(handleServerMsg)
     unsubStatus = ws.onStatus((s) => wsStatus.set(s))
@@ -50,6 +68,8 @@
   }
 
   function disconnectWs() {
+    clearTimeout(stuckTimer)
+    stuck = false
     if (unsubMsg) { unsubMsg(); unsubMsg = null }
     if (unsubStatus) { unsubStatus(); unsubStatus = null }
     if (ws) { ws.close(); ws = null }
@@ -67,6 +87,9 @@
         // le menu "Nouvelle partie", par ex.) ne doit pas nous en éjecter.
         if (!joinDecided) {
           joinDecided = true
+          // La table répond : l'écran d'attente a rempli son office.
+          clearTimeout(stuckTimer)
+          stuck = false
           step = msg.payload?.initialized ? 'table' : 'init'
         }
         break
@@ -103,6 +126,7 @@
   // ---- Auth ----
   function onLoginSuccess(e) {
     session = e.detail
+    errorMsg = ''
     saveSession(session)
     step = 'connecting'
     connectWs()
@@ -128,6 +152,7 @@
     const d = e.detail
     ws?.sendTransferMany(d.cardIds, d.target, d.ownerId ?? '')
   }
+  function sendSabotBottomMany(e) { ws?.sendSabotBottomMany(e.detail.cardIds) }
   function sendDragEnd() { ws?.sendDragEnd() }
   function sendFlip(e)    { ws?.sendFlip(e.detail.cardId) }
   function sendFront(e)   { ws?.sendFront(e.detail.cardId) }
@@ -157,7 +182,28 @@
     step = 'init'
   }
 
-  // ---- Déconnexion ----
+  // ---- Départ de la partie ----
+  // Quitter par ce bouton est un ABANDON, pas une absence : la main du partant
+  // est dispersée et sa chaise reste grisée à table. Fermer l'onglet, recharger
+  // la page ou perdre le réseau restent au contraire de simples absences — on
+  // retrouve alors sa main et sa place. La distinction ne tenant qu'à ce
+  // bouton, on demande au joueur ce qu'il fait de ses cartes plutôt que de
+  // trancher à sa place, et le geste devient explicite.
+  let leaving = false
+  function askLeave() {
+    leaving = true
+  }
+  function cancelLeave() {
+    leaving = false
+  }
+  function confirmLeave(policy) {
+    leaving = false
+    // L'abandon part AVANT la fermeture : close() vide la file d'envoi, mais
+    // encore faut-il que le message y soit entré.
+    ws?.sendAbandon(policy)
+    logout()
+  }
+
   function logout() {
     disconnectWs()
     clearSession()
@@ -170,9 +216,21 @@
   // ---- Cycle de vie : chargement du sprite de cartes ----
   onMount(async () => {
     try { await ensureInlineSprite('/cards.svg') } catch (e) { console.warn(e) }
-    // Session déjà connue (retour sur l'app) : se connecte tout de suite pour
-    // pouvoir décider init/table dès le premier état reçu.
-    if (session) connectWs()
+    // Session déjà connue (retour sur l'app) : on vérifie d'abord que son jeton
+    // vaut encore quelque chose. Les sessions vivent en mémoire côté serveur,
+    // donc un redémarrage les invalide toutes — et un jeton mort fait échouer
+    // la WebSocket sans que le navigateur en dise la cause. Sans ce contrôle,
+    // l'écran restait figé sur « Connexion à la table… », à retenter sans fin.
+    if (session) {
+      if (await isSessionValid(session.token)) {
+        connectWs()
+      } else {
+        clearSession()
+        session = null
+        step = 'auth'
+        errorMsg = 'Votre session a expiré (le serveur a redémarré). Reconnectez-vous.'
+      }
+    }
   })
   onDestroy(() => disconnectWs())
 
@@ -189,10 +247,23 @@
 
 <main class="app">
   {#if step === 'auth'}
-    <Login on:success={onLoginSuccess} />
+    <Login notice={errorMsg} on:success={onLoginSuccess} />
 
   {:else if step === 'connecting'}
-    <div class="connecting">Connexion à la table…</div>
+    <div class="connecting">
+      <div>Connexion à la table…</div>
+      <!-- Porte de sortie. La vérification du jeton au montage traite le cas
+           courant, mais elle laisse passer un serveur injoignable, et la
+           session peut aussi mourir alors qu'on est déjà connecté. Sans ce
+           bouton, l'écran d'attente est sans issue : la reconnexion est
+           infinie et rien d'autre n'est cliquable. -->
+      {#if stuck}
+        <div class="stuck">
+          <p>La table ne répond pas. Le serveur est peut-être arrêté, ou votre session a expiré.</p>
+          <button on:click={backToLogin}>Revenir à la connexion</button>
+        </div>
+      {/if}
+    </div>
 
   {:else if step === 'init'}
     <InitMenu on:start={onInitStart} />
@@ -204,8 +275,34 @@
         <span class="me">Connecté en tant que <b>{session.name}</b></span>
         <span class="status" data-s={$wsStatus}>● {statusLabel}</span>
         <button class="newgame" on:click={askNewGame}>Nouvelle partie</button>
-        <button class="logout" on:click={logout}>Déconnexion</button>
+        <button class="logout" on:click={askLeave}>Quitter la partie</button>
       </header>
+
+      {#if leaving}
+        <div class="modal-backdrop" on:click={cancelLeave}>
+          <div class="modal" on:click|stopPropagation>
+            <h2>Quitter la partie ?</h2>
+            <p>
+              Vous abandonnez : votre chaise restera <b>grisée</b> à table et vos
+              {hand.length} carte{hand.length > 1 ? 's' : ''} ne vous
+              reviendront pas. Que deviennent-elles ?
+            </p>
+            <div class="leave-choices">
+              <button class="choice" on:click={() => confirmLeave('table')}>
+                <b>Sur le tapis</b>
+                <small>Étalées face cachée devant votre chaise. Les autres joueurs pourront les ranger.</small>
+              </button>
+              <button class="choice" on:click={() => confirmLeave('sabot')}>
+                <b>Au fond du sabot</b>
+                <small>Enfouies sous le sabot : elles ne ressortiront qu'en dernier, et personne ne les verra.</small>
+              </button>
+            </div>
+            <div class="modal-actions">
+              <button class="cancel" on:click={cancelLeave}>Rester à table</button>
+            </div>
+          </div>
+        </div>
+      {/if}
 
       {#if confirmingNewGame}
         <div class="modal-backdrop" on:click={cancelNewGame}>
@@ -234,6 +331,7 @@
           on:flipMany={sendFlipMany}
           on:dragMany={sendDragMany}
           on:transferMany={sendTransferMany}
+          on:sabotBottomMany={sendSabotBottomMany}
           on:dragEnd={sendDragEnd}
           on:flip={sendFlip}
           on:front={sendFront}
@@ -260,10 +358,18 @@
   .app { height: 100vh; display: flex; flex-direction: column; }
 
   .connecting {
-    min-height: 100vh; display: grid; place-items: center;
+    min-height: 100vh; display: grid; place-items: center; align-content: center;
+    gap: 1.6rem; padding: 1rem;
     background: radial-gradient(circle at 50% 30%, #1c6e4b 0%, #0d3a26 70%, #062016 100%);
     color: #eef; font-family: system-ui, sans-serif; opacity: .85;
   }
+  .stuck { max-width: 380px; text-align: center; }
+  .stuck p { margin: 0 0 .9rem; font-size: .88rem; opacity: .8; line-height: 1.45; }
+  .stuck button {
+    padding: .55rem 1.1rem; border-radius: 8px; border: 0; cursor: pointer;
+    background: #2f9e63; color: #fff; font-weight: 600; font-size: .9rem;
+  }
+  .stuck button:hover { background: #36b46f; }
 
   .layout { flex: 1; display: grid; grid-template-rows: auto 1fr auto; min-height: 0; }
 
@@ -315,4 +421,19 @@
   .modal-actions .cancel:hover { background: rgba(255,255,255,0.18); }
   .modal-actions .confirm { background: #2f9e63; color: #fff; }
   .modal-actions .confirm:hover { background: #36b46f; }
+
+  /* Départ de partie : deux issues présentées à parts égales, aucune n'étant
+     le « bon » choix — c'est au joueur de trancher. */
+  .leave-choices { display: grid; gap: .6rem; margin-bottom: 1.1rem; }
+  .choice {
+    display: flex; flex-direction: column; gap: .25rem;
+    text-align: left; padding: .7rem .9rem;
+    border-radius: 9px; cursor: pointer;
+    border: 1px solid rgba(255,255,255,0.18);
+    background: rgba(255,255,255,0.06); color: #eef;
+    font-family: inherit;
+  }
+  .choice:hover { background: rgba(255,255,255,0.13); border-color: #ffd27a; }
+  .choice b { font-size: .95rem; }
+  .choice small { opacity: .75; font-size: .8rem; line-height: 1.35; }
 </style>

@@ -100,6 +100,27 @@ export async function login(username, password) {
   return res.json() // { token, id, name }
 }
 
+// isSessionValid vérifie auprès du serveur qu'un jeton mémorisé vaut encore
+// quelque chose. À appeler AVANT d'ouvrir la WebSocket : un jeton périmé la
+// fait échouer sans que le navigateur en révèle la cause (aucun code HTTP n'est
+// exposé sur un échec de poignée de main), et le client boucle alors sur sa
+// reconnexion, figé sur l'écran d'attente.
+//
+// En cas de serveur injoignable on renvoie true : le jeton n'est pas en cause,
+// et la reconnexion automatique de la WebSocket reste la bonne réponse.
+export async function isSessionValid(token) {
+  if (!token) return false
+  try {
+    const res = await fetch('/api/session', {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    if (res.status === 401) return false
+    return true
+  } catch {
+    return true
+  }
+}
+
 // ---- État partagé de la table -------------------------------------------
 
 // État initial : table vide, aucun joueur.

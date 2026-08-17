@@ -15,11 +15,37 @@ const (
 	tableH = 800.0
 )
 
+// Géométrie de pose d'une carte sur le tapis. Ces constantes DOUBLENT celles du
+// client (CARD_W/CARD_H et FELT_INSET dans web/src/lib/Table.svelte). Le
+// serveur n'a aucun moyen de les connaître, et il doit pourtant poser des
+// cartes lui-même lorsqu'un joueur abandonne. Les garder synchronisées : un
+// écart ne casse rien, mais décale les cartes ainsi posées.
+const (
+	cardW     = 92.0
+	cardH     = 128.0
+	feltInset = 80.0 // pourtour bois, où les avatars sont assis
+	// Bornes admissibles pour le COIN supérieur gauche d'une carte, de sorte
+	// qu'elle reste entière sur le feutre.
+	minCardX = feltInset
+	minCardY = feltInset
+	maxCardX = tableW - feltInset - cardW
+	maxCardY = tableH - feltInset - cardH
+	// Chevauchement d'une main étalée à l'abandon (même valeur que le bouton
+	// « Étaler » côté client).
+	abandonSpacing = 30.0
+)
+
 // ---- Payloads clients -----------------------------------------------------
 
 type payloadInit struct {
-	Config DeckConfig `json:"config"`
-	Shuffle bool      `json:"shuffle"`
+	Config  DeckConfig `json:"config"`
+	Shuffle bool       `json:"shuffle"`
+}
+
+// payloadAbandon porte le choix du joueur qui quitte : "table" (main étalée
+// face cachée devant sa chaise) ou "sabot" (main enfouie au fond du sabot).
+type payloadAbandon struct {
+	Policy string `json:"policy"`
 }
 
 type payloadCardOp struct {
@@ -361,6 +387,47 @@ func (app *application) handleClientMsg(c *client, room string, m Message) {
 			app.broadcastState(room)
 		}
 		app.notifyHandChanges(room, res)
+
+	// --- Abandon de partie -------------------------------------------------
+	case "abandon":
+		// Départ volontaire (bouton « Déconnexion »), à distinguer d'une
+		// simple fermeture de WebSocket : celle-ci reste une absence, et le
+		// joueur retrouve sa main en revenant. Ici la main est dispersée et la
+		// chaise grisée. L'ancien propriétaire reçoit une main vide, sans quoi
+		// son écran garderait ses cartes affichées jusqu'à sa déconnexion.
+		var p payloadAbandon
+		_ = json.Unmarshal(m.Payload, &p)
+		policy := normalizeAbandonPolicy(p.Policy)
+		app.engine.mu.Lock()
+		ok := app.engine.Abandon(c.userID, policy)
+		app.engine.mu.Unlock()
+		if ok {
+			log.Printf("abandon: %s quitte la partie (cartes -> %s)", c.name, policy)
+			app.broadcastState(room)
+			app.sendHand(room, c.userID)
+		}
+
+	// --- Enfouissement d'un lot sous le sabot ------------------------------
+	case "sabotBottomMany":
+		// Action « Au fond du sabot » de la sélection multiple. Distincte d'un
+		// transferMany vers le sabot, qui empile au sommet : ici les cartes ne
+		// doivent ressortir qu'en dernier.
+		var p payloadFlipMany // même forme : une simple liste d'IDs
+		if err := json.Unmarshal(m.Payload, &p); err != nil {
+			return
+		}
+		if len(p.CardIDs) == 0 || len(p.CardIDs) > maxBatchSize {
+			return
+		}
+		app.engine.mu.Lock()
+		changed, fromHands := app.engine.TransferManyToSabotBottom(p.CardIDs)
+		app.engine.mu.Unlock()
+		if changed {
+			app.broadcastState(room)
+			for owner := range fromHands {
+				app.sendHand(room, owner)
+			}
+		}
 
 	case "chat":
 		var p payloadChat

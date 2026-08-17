@@ -336,6 +336,197 @@ func TestEnsurePlayerKeepsDistinctSeatAfterReconnect(t *testing.T) {
 	}
 }
 
+func TestEnsurePlayerRestoresSameSeatAfterRefresh(t *testing.T) {
+	// Deuxième bug constaté en usage réel, inverse du précédent : rafraîchir sa
+	// page déplaçait le joueur autour de la table. Fermer l'onglet ferme la
+	// WebSocket, le Player est retiré, et le siège était alors pris sur un
+	// compteur qui ne faisait que croître — six rafraîchissements faisaient le
+	// tour complet.
+	e := newEngine()
+	e.ensurePlayer("u-alice", "alice", tableW, tableH)
+	pBob := e.ensurePlayer("u-bob", "bob", tableW, tableH)
+
+	// Bob rafraîchit sa page : depart puis retour immediat.
+	e.removePlayer("u-bob")
+	pBobAgain := e.ensurePlayer("u-bob", "bob", tableW, tableH)
+
+	if pBobAgain.AX != pBob.AX || pBobAgain.AY != pBob.AY {
+		t.Fatalf("bob devrait retrouver sa chaise après un rafraîchissement: avant=(%v,%v) après=(%v,%v)",
+			pBob.AX, pBob.AY, pBobAgain.AX, pBobAgain.AY)
+	}
+
+	// Et cela doit tenir sur plusieurs rafraîchissements d'affilée : c'est la
+	// répétition qui rendait l'ancien défaut spectaculaire.
+	for i := 0; i < 8; i++ {
+		e.removePlayer("u-bob")
+		p := e.ensurePlayer("u-bob", "bob", tableW, tableH)
+		if p.AX != pBob.AX || p.AY != pBob.AY {
+			t.Fatalf("rafraîchissement %d : bob a change de chaise (%v,%v) -> (%v,%v)",
+				i+1, pBob.AX, pBob.AY, p.AX, p.AY)
+		}
+	}
+}
+
+func TestFreeSeatDoesNotReuseAnAbsentPlayerSeat(t *testing.T) {
+	// Un joueur absent garde sa chaise : un NOUVEAU venu qui arrive pendant ce
+	// temps doit prendre un siège libre, pas celui qui est reserve. Sinon le
+	// joueur parti retrouve sa place occupee, et les avatars se superposent.
+	e := newEngine()
+	pAlice := e.ensurePlayer("u-alice", "alice", tableW, tableH)
+	e.removePlayer("u-alice")
+
+	pCarol := e.ensurePlayer("u-carol", "carol", tableW, tableH)
+	if pCarol.AX == pAlice.AX && pCarol.AY == pAlice.AY {
+		t.Fatal("carol ne devrait pas hériter du siège reservé à alice")
+	}
+
+	pAliceAgain := e.ensurePlayer("u-alice", "alice", tableW, tableH)
+	if pAliceAgain.AX != pAlice.AX || pAliceAgain.AY != pAlice.AY {
+		t.Fatal("alice devrait retrouver son siège malgré l'arrivée de carol")
+	}
+}
+
+// ---- Abandon de partie -----------------------------------------------------
+
+// handOf compte les cartes en main d'un joueur.
+func handOf(e *engine, userID string) int {
+	n := 0
+	for _, c := range e.cards {
+		if c.Zone == ZoneHand && c.Owner == userID {
+			n++
+		}
+	}
+	return n
+}
+
+func TestAbandonToTableLeavesCardsFaceDownOnFelt(t *testing.T) {
+	e := newEngineWithCards(t, 6)
+	p := e.ensurePlayer("u-alice", "alice", tableW, tableH)
+	// Trois cartes distribuées à alice, révélées par la distribution.
+	for i := 0; i < 3; i++ {
+		e.DrawSabot(Transfer{Target: TargetHand, OwnerID: "u-alice"})
+	}
+	if handOf(e, "u-alice") != 3 {
+		t.Fatalf("préparation: alice devrait avoir 3 cartes, en a %d", handOf(e, "u-alice"))
+	}
+
+	if !e.Abandon("u-alice", AbandonToTable) {
+		t.Fatal("Abandon devrait réussir pour un joueur à table")
+	}
+	if handOf(e, "u-alice") != 0 {
+		t.Fatal("la main du partant doit être vidée")
+	}
+
+	onTable := 0
+	for _, c := range e.cards {
+		if c.Zone != ZoneTable {
+			continue
+		}
+		onTable++
+		// Un abandon ne révèle jamais le jeu du partant, même si la carte était
+		// face visible dans sa main.
+		if c.FaceUp {
+			t.Fatalf("carte %s posée face visible lors d'un abandon", c.ID)
+		}
+		// Elle doit rester entièrement sur le feutre, chaise comprise : les
+		// sièges sont calculés sur le pourtour bois, hors zone de pose.
+		if c.X < minCardX || c.X > maxCardX || c.Y < minCardY || c.Y > maxCardY {
+			t.Fatalf("carte %s hors du feutre: (%v,%v)", c.ID, c.X, c.Y)
+		}
+	}
+	if onTable != 3 {
+		t.Fatalf("3 cartes devraient être sur le tapis, %d trouvées", onTable)
+	}
+	if !p.Abandoned {
+		t.Fatal("le joueur devrait être marqué comme parti (chaise grisée)")
+	}
+}
+
+func TestAbandonToSabotBuriesCardsAtTheBottom(t *testing.T) {
+	e := newEngineWithCards(t, 5)
+	e.ensurePlayer("u-alice", "alice", tableW, tableH)
+	drawn, _ := e.DrawSabot(Transfer{Target: TargetHand, OwnerID: "u-alice"})
+	remaining := len(e.sabot)
+
+	if !e.Abandon("u-alice", AbandonToSabot) {
+		t.Fatal("Abandon devrait réussir")
+	}
+	if len(e.sabot) != remaining+1 {
+		t.Fatalf("le sabot devrait regagner une carte: %d -> %d", remaining, len(e.sabot))
+	}
+	// e.sabot va du FOND (index 0) vers le sommet : la carte rendue doit être
+	// au fond, donc ressortir en dernier.
+	if e.sabot[0] != drawn {
+		t.Fatalf("la carte rendue devrait être au fond du sabot, trouvé %q en fond", e.sabot[0])
+	}
+	if c := e.findCard(drawn); c.FaceUp {
+		t.Fatal("une carte remise au sabot doit être face cachée")
+	}
+}
+
+func TestAbandonedPlayerCannotReceiveCards(t *testing.T) {
+	// Donner une carte a un joueur parti la ferait disparaitre du tapis sans
+	// que personne puisse la reprendre.
+	e := newEngineWithCards(t, 4)
+	e.ensurePlayer("u-alice", "alice", tableW, tableH)
+	e.ensurePlayer("u-bob", "bob", tableW, tableH)
+	e.Abandon("u-bob", AbandonToSabot)
+
+	id, _ := e.DrawSabot(Transfer{Target: TargetTable, X: 300, Y: 300})
+	res := e.TransferCard(Transfer{CardID: id, Target: TargetAvatar, OwnerID: "u-bob"})
+	if res.HandOwner != "" || handOf(e, "u-bob") != 0 {
+		t.Fatal("un joueur parti ne doit pas pouvoir recevoir de carte")
+	}
+	if c := e.findCard(id); c.Zone != ZoneTable {
+		t.Fatalf("la carte refusée doit rester sur le tapis, zone=%v", c.Zone)
+	}
+}
+
+func TestAbandonedChairSurvivesDisconnectButNotANewGame(t *testing.T) {
+	e := newEngineWithCards(t, 4)
+	e.ensurePlayer("u-alice", "alice", tableW, tableH)
+	e.Abandon("u-alice", AbandonToTable)
+
+	// La fermeture de WebSocket suit immédiatement l'abandon : la chaise grisée
+	// doit y survivre, sans quoi le depart serait indistinguable d'une absence.
+	e.removePlayer("u-alice")
+	if p, ok := e.players["u-alice"]; !ok || !p.Abandoned {
+		t.Fatal("la chaise grisée doit survivre à la déconnexion du partant")
+	}
+
+	// Une nouvelle partie, elle, remet la table a neuf.
+	cards, _ := BuildDeck(DefaultDeckConfig())
+	e.LoadDeck(cards)
+	if _, ok := e.players["u-alice"]; ok {
+		t.Fatal("une nouvelle partie doit effacer les chaises grisees")
+	}
+}
+
+func TestTransferManyToSabotBottomKeepsPileOrderUnderTheShoe(t *testing.T) {
+	e := newEngineWithCards(t, 6)
+	var ids []string
+	for i := 0; i < 3; i++ {
+		id, _ := e.DrawSabot(Transfer{Target: TargetTable, X: float64(100 + 10*i), Y: 200})
+		ids = append(ids, id)
+	}
+	sabotBefore := len(e.sabot)
+
+	// Payload volontairement désordonné : c'est l'ordre Z qui doit primer.
+	changed, _ := e.TransferManyToSabotBottom([]string{ids[2], ids[0], ids[1]})
+	if !changed {
+		t.Fatal("le transfert aurait dû modifier l'état")
+	}
+	if len(e.sabot) != sabotBefore+3 {
+		t.Fatalf("le sabot devrait regagner 3 cartes: %d -> %d", sabotBefore, len(e.sabot))
+	}
+	// Les trois cartes occupent le fond, dans leur ordre Z croissant.
+	for i, want := range ids {
+		if e.sabot[i] != want {
+			t.Fatalf("fond du sabot position %d: attendu %q, trouvé %q", i, want, e.sabot[i])
+		}
+	}
+}
+
 // ---- Mutations par lot (sélection multiple) --------------------------------
 
 func TestMoveManyPreservesRelativeZOrder(t *testing.T) {

@@ -75,9 +75,10 @@
   }
 
   // Dimensions par défaut d'une carte de table (Table.svelte ne passe pas de
-  // width/height à <Card>). Les cartes sont positionnées par leur centre
-  // (§ card-anchor). Utilisées par l'aimantage, la détection de pile et les
-  // actions groupées.
+  // width/height à <Card>). Une carte est repérée par son COIN supérieur
+  // gauche et occupe [x, x+CARD_W] x [y, y+CARD_H] — cf. l'avertissement sur
+  // `.card-anchor` dans les styles. Utilisées par l'aimantage, la détection de
+  // pile et les actions groupées.
   const CARD_W = 92
   const CARD_H = 128
 
@@ -116,14 +117,25 @@
   }
 
   // ---- Actions groupées : empiler / étaler ------------------------------------
-  // Marges de placement : les cartes restent entières sur la table (pourtour
-  // bois de 80px + demi-carte), cf. dimensions de .table dans les styles.
+  // Marges de placement : une carte posée par ces actions doit rester entière
+  // sur le feutre, dont le pourtour bois occupe 80px (`.felt` est en inset:80px,
+  // cf. les styles plus bas).
+  //
+  // Ces bornes valent pour un COIN supérieur gauche, pas pour un centre : une
+  // carte occupe [x, x+CARD_W] x [y, y+CARD_H]. Elles étaient auparavant
+  // écrites `80 + CARD_W/2`, ce qui n'a de sens que pour des centres — la borne
+  // haute laissait donc dépasser une demi-carte sur le bois, et la borne basse
+  // gardait inutilement une demi-carte de jeu. Voir l'avertissement sur
+  // `.card-anchor` dans les styles.
   const TABLE_W = 1160
   const TABLE_H = 800
-  const MARGIN_X = 80 + CARD_W / 2
-  const MARGIN_Y = 80 + CARD_H / 2
-  const clampX = (v) => Math.min(Math.max(v, MARGIN_X), TABLE_W - MARGIN_X)
-  const clampY = (v) => Math.min(Math.max(v, MARGIN_Y), TABLE_H - MARGIN_Y)
+  const FELT_INSET = 80
+  const MIN_X = FELT_INSET
+  const MIN_Y = FELT_INSET
+  const MAX_X = TABLE_W - FELT_INSET - CARD_W
+  const MAX_Y = TABLE_H - FELT_INSET - CARD_H
+  const clampX = (v) => Math.min(Math.max(v, MIN_X), MAX_X)
+  const clampY = (v) => Math.min(Math.max(v, MIN_Y), MAX_Y)
 
   // Empile la sélection en une pile nette au barycentre du groupe. MoveMany
   // préserve l'ordre Z relatif : la pile garde son ordre de superposition.
@@ -141,7 +153,10 @@
   function spreadSelection() {
     const cards = table.filter((c) => selected.has(c.id)).sort((a, b) => a.z - b.z)
     if (cards.length < 2) return
-    const spacing = Math.min(30, (TABLE_W - 2 * MARGIN_X) / (cards.length - 1))
+    // Largeur utile = l'amplitude des coins admissibles, pas celle du feutre :
+    // la dernière carte de la rangée déborde encore de CARD_W au-delà de son
+    // propre coin, déjà retranché dans MAX_X.
+    const spacing = Math.min(30, (MAX_X - MIN_X) / (cards.length - 1))
     const cx = cards.reduce((s, c) => s + c.x, 0) / cards.length
     const cy = clampY(Math.round(cards.reduce((s, c) => s + c.y, 0) / cards.length))
     const x0 = cx - ((cards.length - 1) * spacing) / 2
@@ -152,6 +167,17 @@
 
   function flipSelection() {
     if (selected.size > 0) dispatch('flipMany', { cardIds: [...selected] })
+  }
+
+  // Renvoie la sélection SOUS le sabot : les cartes ne ressortiront qu'en
+  // dernier. C'est l'issue offerte au joueur qui abandonne et laisse sa main
+  // sur le tapis — les autres peuvent alors la ranger sans la regarder — mais
+  // l'action vaut pour n'importe quelle sélection. À ne pas confondre avec un
+  // glisser vers le sabot, qui dépose au sommet.
+  function selectionToSabotBottom() {
+    if (selected.size === 0) return
+    dispatch('sabotBottomMany', { cardIds: [...selected] })
+    selected = new Set()
   }
   function clearSelection() {
     selected = new Set()
@@ -191,8 +217,11 @@
     marquee = { ...marquee, x1: e.clientX - tableRect.left, y1: e.clientY - tableRect.top }
     const xa = Math.min(marquee.x0, marquee.x1), xb = Math.max(marquee.x0, marquee.x1)
     const ya = Math.min(marquee.y0, marquee.y1), yb = Math.max(marquee.y0, marquee.y1)
-    // Une carte est retenue si son centre (c.x, c.y : les cartes sont ancrées
-    // par leur centre, cf. .card-anchor) tombe dans le rectangle.
+    // Une carte est retenue si son point d'ancrage (c.x, c.y) tombe dans le
+    // rectangle. Cet ancrage est le COIN supérieur gauche, pas le centre
+    // (cf. `.card-anchor`) : il faut donc balayer le haut-gauche d'une carte
+    // pour l'attraper, pas son milieu. Comportement inchangé, mais le
+    // commentaire précédent affirmait le contraire.
     const next = new Set(marqueeBase)
     for (const c of table) {
       if (c.x >= xa && c.x <= xb && c.y >= ya && c.y <= yb) next.add(c.id)
@@ -209,9 +238,10 @@
   }
 
   // ---- Aimantage entre cartes proches (placement côte à côte) --------------
-  // Les cartes étant positionnées par leur centre, deux cartes exactement côte
-  // à côte ont leurs centres espacés d'une largeur (horizontalement) ou d'une
-  // hauteur (verticalement) de carte.
+  // Deux cartes exactement côte à côte ont leurs points d'ancrage espacés d'une
+  // largeur (horizontalement) ou d'une hauteur (verticalement) de carte. Le
+  // calcul ci-dessous est purement relatif : il reste juste que l'ancrage
+  // désigne un coin ou un centre.
   const SNAP_DIST = 22 // px : au-delà, pas d'aimantage (mouvement libre)
 
   // snapPosition ajuste (x,y) pour coller exactement au bord d'une carte
@@ -243,7 +273,7 @@
   }
 
   // ---- Hit-test au drop : route vers la bonne action serveur ----
-  // trackedPos : position du centre de la carte réellement suivie pendant le
+  // trackedPos : position d'ancrage de la carte réellement suivie pendant le
   // drag (cf. Card.svelte curX/curY), à utiliser pour le placement sur la
   // table. Le point du pointeur (clientX/clientY) ne sert qu'au hit-test de
   // la cible (table/sabot/avatar/main) : l'utiliser aussi comme coordonnées
@@ -398,13 +428,21 @@
 
   // ---- Handlers du sabot ----
   function onSabotDraw(e) {
-    const { clientX, clientY } = e.detail
+    const { clientX, clientY, ghostX, ghostY } = e.detail
     refreshRect()
     const hit = dropAt(clientX, clientY, { tableRect })
     if (!hit) return
     switch (hit.target) {
       case TARGETS.TABLE: {
-        const snapped = snapPosition(hit.x, hit.y, null)
+        // Même parti pris que resolveDrop pour une carte du tapis : le pointeur
+        // ne sert qu'au hit-test de la cible, jamais de position finale. Celle
+        // du fantôme est la seule qui pose la carte là où le joueur la voit.
+        // Son coin sup-gauche se convertit directement en coordonnées tapis :
+        // c'est bien un coin qu'attend le rendu, cf. `.card-anchor` plus bas.
+        const pos = (tableRect && ghostX != null)
+          ? { x: ghostX - tableRect.left, y: ghostY - tableRect.top }
+          : hit
+        const snapped = snapPosition(pos.x, pos.y, null)
         dispatch('sabotDraw', { target: TARGETS.TABLE, x: snapped.x, y: snapped.y })
         break
       }
@@ -499,6 +537,10 @@
           <button title="Disposer la sélection en rangée" on:click={spreadSelection}>Étaler</button>
         {/if}
         <button title="Retourner toutes les cartes sélectionnées (F)" on:click={flipSelection}>Retourner</button>
+        <button
+          title="Remettre la sélection sous le sabot : ces cartes ne ressortiront qu'en dernier"
+          on:click={selectionToSabotBottom}
+        >Au fond du sabot</button>
         <button title="Désélectionner (Échap)" on:click={clearSelection}>✕</button>
       </div>
     {/if}
@@ -578,9 +620,14 @@
   .sel-chip button:hover { background: rgba(255, 210, 122, 0.28); }
   .card-anchor {
     position: absolute;
-    transform: translate(-50%, -50%);
-    /* Les cartes sont positionnées par leur centre (le serveur stocke x/y du
-       coin sup-gauche de l'ancêtre .card-slot interne, mais on translate ici
-       pour coller au ressenti "je saisis la carte par son centre"). */
+    /* ATTENTION — les cartes sont positionnées par leur COIN supérieur gauche,
+       pas par leur centre. Un `transform: translate(-50%, -50%)` figurait ici
+       avec un commentaire affirmant le contraire ; il etait sans effet, et le
+       commentaire faux. L'unique enfant de cette ancre (`.card-slot`) est en
+       position absolute, donc hors flux : l'ancre mesure 0x0, et un pourcentage
+       calcule sur 0 vaut 0. Le translate a ete retire plutot que corrigé, car
+       le reste du code (aimantage, detection de pile, drag) est écrit et réglé
+       pour des coins ; le faire fonctionner deplacerait chaque carte d'une
+       demi-carte. Toute position envoyée au serveur doit donc être un coin. */
   }
 </style>

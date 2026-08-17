@@ -232,6 +232,40 @@ func loginHandler(users UserStore, sessions *sessionManager, limiter *loginRateL
 	}
 }
 
+// ---- HTTP /api/session ----------------------------------------------------
+
+// sessionHandler dit si un jeton est encore valide : 204 si oui, 401 sinon.
+//
+// Sans lui, un client ne peut pas le savoir. Les sessions vivent en mémoire :
+// tout redémarrage du serveur les invalide en bloc, et le jeton conservé par le
+// navigateur devient un faux souvenir. Or l'échec d'une poignée de main
+// WebSocket ne remonte au navigateur AUCUN code HTTP — un 401 y est
+// indiscernable d'une coupure réseau. Le client rejouait donc sa reconnexion
+// indéfiniment, bloqué sur « Connexion à la table… ».
+//
+// Le jeton passe par l'en-tête Authorization, jamais par l'URL : une chaîne de
+// requête finit dans les journaux d'accès des serveurs intermédiaires.
+func sessionHandler(users UserStore, sessions *sessionManager) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		token := strings.TrimSpace(strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer "))
+		if token == "" {
+			http.Error(w, `{"error":"missing token"}`, http.StatusUnauthorized)
+			return
+		}
+		userID, ok := sessions.lookup(token)
+		if !ok {
+			http.Error(w, `{"error":"invalid token"}`, http.StatusUnauthorized)
+			return
+		}
+		// Le compte peut avoir disparu du fichier depuis l'émission du jeton.
+		if _, ok := users.FindByID(userID); !ok {
+			http.Error(w, `{"error":"unknown user"}`, http.StatusUnauthorized)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}
+}
+
 // ---- Bootstrap ------------------------------------------------------------
 
 // bootstrapUsers charge les utilisateurs autorisés, par ordre de priorité :

@@ -41,10 +41,13 @@
   class="avatar"
   class:is-me={isMe}
   class:hovered
-  data-drop="avatar"
+  class:abandoned={player.abandoned}
+  {...(player.abandoned ? {} : { 'data-drop': 'avatar' })}
   data-owner={player.userId}
   style="--size:{size}px; --hue:{hue}; left:{player.ax}px; top:{player.ay}px;"
-  title="{player.name} (déposer une carte ici la lui donne)"
+  title={player.abandoned
+    ? `${player.name} a quitté la partie`
+    : `${player.name} (déposer une carte ici la lui donne)`}
   on:dragenter={onDragEnter}
   on:dragleave={onDragLeave}
   on:dragover={onDragOver}
@@ -56,7 +59,7 @@
          public, jamais les cartes elles-mêmes (§ vie privée de la main). -->
     <div class="handcount" title="{player.handCount ?? 0} carte{(player.handCount ?? 0) > 1 ? 's' : ''} en main">{player.handCount ?? 0}</div>
   </div>
-  <div class="name">{player.name}{isMe ? ' (vous)' : ''}</div>
+  <div class="name">{player.name}{player.abandoned ? ' — parti' : isMe ? ' (vous)' : ''}</div>
 </div>
 
 <style>
@@ -109,6 +112,22 @@
     transform: scale(1.1);
     box-shadow: 0 0 0 6px rgba(255, 210, 122, 0.35), 0 6px 14px rgba(0,0,0,0.5);
   }
+
+  /* Chaise d'un joueur qui a quitté la partie : la place reste marquée, mais
+     désaturée et estompée — on voit qu'elle est vide pour de bon, sans qu'elle
+     attire l'œil. */
+  .avatar.abandoned { opacity: .45; }
+  .avatar.abandoned .medal {
+    filter: grayscale(1);
+    border-style: dashed;
+    border-color: rgba(255,255,255,0.5);
+    box-shadow: none;
+  }
+  .avatar.abandoned .handcount { display: none; }
+  /* Un partant n'est plus une cible de don : le survol ne doit rien promettre.
+     L'attribut data-drop lui est retiré plus haut, donc dropAt() ne le voit
+     même plus — et le serveur refuse le transfert de son côté. */
+  .avatar.abandoned.hovered .medal { transform: none; box-shadow: none; }
   .name {
     background: rgba(0,0,0,0.55);
     color: #fff;

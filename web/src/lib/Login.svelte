@@ -5,6 +5,10 @@
   import { login, loadLastUsername, saveLastUsername } from './store.js'
 
   const dispatch = createEventDispatcher()
+  // Message venu de l'application, expliquant pourquoi on se retrouve ici —
+  // typiquement une session expirée. Distinct de `error`, qui ne concerne que
+  // la tentative de connexion en cours.
+  export let notice = ''
   // Le champ s'ouvre sur le dernier identifiant connecté avec succès. Sans
   // historique, il reste vide et c'est le texte d'invite qui s'affiche.
   let username = loadLastUsername()
@@ -36,6 +40,10 @@
   <form class="login-card" on:submit={submit}>
     <h1>Table de cartes</h1>
     <p class="subtitle">Connectez-vous pour rejoindre la table.</p>
+
+    {#if notice}
+      <p class="notice">{notice}</p>
+    {/if}
 
     <label>
       Identifiant
@@ -92,6 +100,15 @@
   }
   h1 { margin: 0 0 .25rem; font-size: 1.5rem; }
   .subtitle { margin: 0 0 .5rem; opacity: .7; font-size: .9rem; }
+  /* Explication d'un retour force ici (session expiree) : informatif, pas une
+     erreur de saisie — d'ou l'ambre plutot que le rouge de `.error`. */
+  .notice {
+    margin: 0 0 .3rem; padding: .55rem .7rem;
+    border-radius: 8px; font-size: .85rem; line-height: 1.4;
+    background: rgba(255,210,122,0.12);
+    border: 1px solid rgba(255,210,122,0.35);
+    color: #ffd27a;
+  }
   label { display: flex; flex-direction: column; gap: .3rem; font-size: .85rem; opacity: .9; }
   input {
     padding: .6rem .7rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.15);

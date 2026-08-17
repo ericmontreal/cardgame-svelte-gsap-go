@@ -14,6 +14,8 @@
 //     { type:'flipMany',  payload:{ cardIds:[...] } }              retournement groupé
 //     { type:'dragMany',  payload:{ items:[{cardId,x,y}] } }       positions live groupées
 //     { type:'transferMany', payload:{ cardIds:[...], target, ownerId } }  transfert groupé
+//     { type:'sabotBottomMany', payload:{ cardIds:[...] } }        enfouit un lot SOUS le sabot
+//     { type:'abandon',   payload:{ policy:'table'|'sabot' } }     quitte la partie
 //     { type:'dragEnd',   payload:{} }                              drop annulé (efface le live)
 //     { type:'transfer',  payload:{ cardId, target, x, y, ownerId } }  change de zone
 //     { type:'sabotDraw', payload:{ target, x, y, ownerId } }      tire le sommet du sabot
@@ -202,6 +204,16 @@ export function createWsClient(opts = {}) {
     },
     sendTransferMany(cardIds, target, ownerId = '') {
       return send({ type: 'transferMany', payload: { cardIds, target, ownerId } })
+    },
+    // Enfouit un lot sous le sabot. Volontairement distinct de
+    // sendTransferMany(..., 'sabot'), qui empile au sommet.
+    sendSabotBottomMany(cardIds) {
+      return send({ type: 'sabotBottomMany', payload: { cardIds } })
+    },
+    // Quitte la partie. policy : 'table' (main étalée face cachée devant sa
+    // chaise) ou 'sabot' (main enfouie au fond du sabot).
+    sendAbandon(policy) {
+      return send({ type: 'abandon', payload: { policy } })
     },
     sendDragEnd() {
       return send({ type: 'dragEnd', payload: {} })
