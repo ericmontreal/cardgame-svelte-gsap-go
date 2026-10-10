@@ -173,6 +173,7 @@ export function resetLocal() {
   chatLog.set([])
   wsStatus.set('idle')
   liveDrag.set(null)
+  sabotShuffle.set(null)
 }
 
 // ---- Helpers de mise à jour réactive ------------------------------------
@@ -200,12 +201,76 @@ export function applyHand(payload) {
 // Ajoute un message de chat au journal.
 export function applyChat(msg) {
   const entry = {
+    id: ++chatSeq,
     author: msg?.payload?.author ?? msg?.sender ?? '?',
     text: String(msg?.payload?.text ?? ''),
     at: msg?.payload?.at ?? Date.now(),
   }
   chatLog.update((log) => [...log, entry].slice(-200))
 }
+
+// Dernier mélange du sabot annoncé par le serveur : { by, count, at } | null.
+// Le sabot s'y abonne pour jouer son animation chez TOUS les joueurs, pas
+// seulement chez celui qui a cliqué — l'état public, lui, ne change pas (seul
+// le nombre de cartes du sabot est connu), il ne peut donc pas servir de signal.
+export const sabotShuffle = writable(null)
+
+// Applique un message "sabotShuffled" : déclenche l'animation et laisse une
+// trace dans le chat, pour qu'un joueur qui regardait ailleurs sache que le
+// paquet a été battu, et par qui.
+export function applySabotShuffled(msg) {
+  const by = String(msg?.payload?.by ?? '?')
+  const count = Number(msg?.payload?.count) || 0
+  const at = Date.now()
+  sabotShuffle.set({ by, count, at })
+  pushTableNote(`${by} a mélangé le sabot (${cardsLabel(count)})`, at)
+}
+
+// Applique un message "cardsReceived" : des cartes sont entrées dans une main.
+export function applyCardsReceived(msg) {
+  const text = receivedText(msg?.payload)
+  if (text) pushTableNote(text)
+}
+
+// receivedText rédige l'annonce d'une réception de cartes. Elle ne nomme
+// jamais les cartes : le serveur ne les transmet pas. La tournure évite
+// « de + nom » pour ne pas buter sur l'élision (« de alice »).
+export function receivedText(p) {
+  const by = String(p?.by ?? '?')
+  const to = String(p?.to ?? '?')
+  const n = Number(p?.count) || 0
+  if (n <= 0) return ''
+  const cards = n === 1 ? 'une carte' : `${n} cartes`
+  const given = n === 1 ? 'donnée' : 'données'
+  if (p?.self) {
+    switch (p.from) {
+      case 'sabot': return `${to} a tiré ${cards} du sabot`
+      case 'table': return `${to} a ramassé ${cards} du tapis`
+      default: return `${to} a pris ${cards}`
+    }
+  }
+  switch (p?.from) {
+    case 'sabot': return `${to} a reçu ${cards} du sabot, ${given} par ${by}`
+    case 'table': return `${to} a reçu ${cards} du tapis, ${given} par ${by}`
+    case 'hand': return `${to} a reçu ${cards}, ${given} par ${by} depuis sa main`
+    default: return `${to} a reçu ${cards}, ${given} par ${by}`
+  }
+}
+
+function cardsLabel(n) {
+  return `${n} carte${n > 1 ? 's' : ''}`
+}
+
+// Annonce de la table dans le chat : rendue à part (italique, sans auteur),
+// jamais saisie par un joueur.
+function pushTableNote(text, at = Date.now()) {
+  chatLog.update((log) => [...log, { id: ++chatSeq, author: '', system: true, text, at }].slice(-200))
+}
+
+// Identifiant de ligne du chat, clé du {#each} de Chat.svelte. Le triplet
+// heure|auteur|texte ne suffit plus : deux tirages dans la même milliseconde
+// produisent deux annonces identiques, et Svelte refuse les clés en double.
+let chatSeq = 0
 
 // Cartes en cours de déplacement par un autre joueur (drag live, simple ou
 // groupé). Dictionnaire cardId -> {x,y} pour que la vue s'update en temps réel

@@ -502,6 +502,110 @@ func TestAbandonedChairSurvivesDisconnectButNotANewGame(t *testing.T) {
 	}
 }
 
+func TestTransferReportsWhereAReceivedCardCameFrom(t *testing.T) {
+	e := newEngineWithCards(t, 6)
+	e.ensurePlayer("u-alice", "alice", tableW, tableH)
+	e.ensurePlayer("u-bob", "bob", tableW, tableH)
+
+	id, res := e.DrawSabot(Transfer{Target: TargetAvatar, OwnerID: "u-bob"})
+	if res.Received != ZoneSabot || res.HandOwner != "u-bob" {
+		t.Fatalf("tirage vers bob: reçu=%q destinataire=%q", res.Received, res.HandOwner)
+	}
+	// De la main de bob à celle d'alice : la carte change de main, et les
+	// comptes de cartes en main (publics) doivent être rediffusés.
+	if r := e.TransferCard(Transfer{CardID: id, Target: TargetAvatar, OwnerID: "u-alice"}); r.Received != ZoneHand || !r.PublicChanged {
+		t.Fatalf("don de main à main: reçu=%q public=%v, attendu %q et true", r.Received, r.PublicChanged, ZoneHand)
+	}
+	// Alice la lâche sur son propre avatar : elle ne fait que la reposer.
+	if r := e.TransferCard(Transfer{CardID: id, Target: TargetAvatar, OwnerID: "u-alice"}); r.Received != "" || r.PublicChanged {
+		t.Fatalf("reposer une carte dans sa propre main ne change rien, reçu=%q public=%v", r.Received, r.PublicChanged)
+	}
+	tbl, _ := e.DrawSabot(Transfer{Target: TargetTable, X: 300, Y: 300})
+	if r := e.TransferCard(Transfer{CardID: tbl, Target: TargetHand, OwnerID: "u-alice"}); r.Received != ZoneTable {
+		t.Fatalf("ramassage du tapis: reçu=%q, attendu %q", r.Received, ZoneTable)
+	}
+	// Une carte posée sur le tapis n'entre dans aucune main.
+	if r := e.TransferCard(Transfer{CardID: tbl, Target: TargetTable, X: 200, Y: 200}); r.Received != "" {
+		t.Fatalf("une pose sur le tapis n'est pas une réception, reçu=%q", r.Received)
+	}
+}
+
+func TestTransferManyCountsReceivedCardsByOrigin(t *testing.T) {
+	e := newEngineWithCards(t, 6)
+	e.ensurePlayer("u-alice", "alice", tableW, tableH)
+	e.ensurePlayer("u-bob", "bob", tableW, tableH)
+	var ids []string
+	for i := 0; i < 3; i++ {
+		id, _ := e.DrawSabot(Transfer{Target: TargetTable, X: float64(100 + 10*i), Y: 200})
+		ids = append(ids, id)
+	}
+	res := e.TransferMany(ids, TargetAvatar, "u-bob")
+	if res.Received[ZoneTable] != 3 || len(res.Received) != 1 {
+		t.Fatalf("3 cartes du tapis attendues pour bob, obtenu %v", res.Received)
+	}
+	// Vers le sabot, personne ne reçoit rien.
+	if res := e.TransferMany(ids, TargetSabot, ""); len(res.Received) != 0 {
+		t.Fatalf("un retour au sabot n'est pas une réception, obtenu %v", res.Received)
+	}
+}
+
+func TestShuffleSabotKeepsSameCardsAndLeavesTableAndHandsAlone(t *testing.T) {
+	e := newEngineWithCards(t, 52)
+	e.ensurePlayer("u-alice", "alice", tableW, tableH)
+	inHand, _ := e.DrawSabot(Transfer{Target: TargetHand, OwnerID: "u-alice"})
+	onTable, _ := e.DrawSabot(Transfer{Target: TargetTable, X: 300, Y: 300})
+	before := append([]string(nil), e.sabot...)
+
+	if n := e.ShuffleSabot(); n != 50 {
+		t.Fatalf("ShuffleSabot devrait annoncer 50 cartes, a annoncé %d", n)
+	}
+	if len(e.sabot) != len(before) {
+		t.Fatalf("le mélange ne doit ni ajouter ni retirer de carte: %d -> %d", len(before), len(e.sabot))
+	}
+	want := map[string]int{}
+	for _, id := range before {
+		want[id]++
+	}
+	for _, id := range e.sabot {
+		want[id]--
+	}
+	for id, d := range want {
+		if d != 0 {
+			t.Fatalf("la carte %s n'a pas survécu intacte au mélange (écart %d)", id, d)
+		}
+	}
+	// Le mélange porte sur le paquet, pas sur la table : rien n'est ramassé.
+	if c := e.findCard(inHand); c.Zone != ZoneHand || c.Owner != "u-alice" {
+		t.Fatalf("la carte en main ne doit pas bouger, zone=%v owner=%q", c.Zone, c.Owner)
+	}
+	if c := e.findCard(onTable); c.Zone != ZoneTable {
+		t.Fatalf("la carte du tapis ne doit pas bouger, zone=%v", c.Zone)
+	}
+	// 50! ordres possibles : retomber sur l'ordre initial signalerait un
+	// mélange inopérant, pas un hasard.
+	same := true
+	for i := range before {
+		if before[i] != e.sabot[i] {
+			same = false
+			break
+		}
+	}
+	if same {
+		t.Fatal("l'ordre du sabot devrait avoir changé")
+	}
+}
+
+func TestShuffleSabotIsANoOpBelowTwoCards(t *testing.T) {
+	e := newEngineWithCards(t, 1)
+	if n := e.ShuffleSabot(); n != 0 {
+		t.Fatalf("un sabot d'une carte n'a rien à mélanger, annoncé %d", n)
+	}
+	e.DrawSabot(Transfer{Target: TargetTable, X: 300, Y: 300})
+	if n := e.ShuffleSabot(); n != 0 {
+		t.Fatalf("un sabot vide n'a rien à mélanger, annoncé %d", n)
+	}
+}
+
 func TestTransferManyToSabotBottomKeepsPileOrderUnderTheShoe(t *testing.T) {
 	e := newEngineWithCards(t, 6)
 	var ids []string

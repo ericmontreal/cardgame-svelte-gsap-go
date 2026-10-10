@@ -12,6 +12,7 @@
   export let table = []          // cartes publiques (zone table)
   export let players = []        // joueurs connectés
   export let sabotCount = 0
+  export let sabotShuffleAt = 0  // dernier mélange annoncé (anime le sabot)
   export let initialized = false
   export let myUserId = ''
   export let snapEnabled = true  // aimantage entre cartes proches (menu init)
@@ -25,15 +26,47 @@
   // le déplacer en le glissant, mais son emplacement par défaut est stable.
   const SABOT_POS = { x: 534, y: 336 }
 
+  // ---- Mise à l'échelle (tablettes, petits écrans) -------------------------
+  // Le tapis est dessiné à taille fixe (TABLE_W × TABLE_H, repère partagé avec
+  // le serveur) puis réduit d'un bloc pour tenir dans la place disponible :
+  // toute la table reste visible sans défilement. Jamais agrandi au-delà de 1.
+  //
+  // Toutes les coordonnées échangées (serveur, cartes, sélection) restent dans
+  // le repère NON réduit. Seules les conversions écran → tapis divisent par
+  // `scale` ; l'attribut data-scale l'expose à Card.svelte et à drag.js, qui
+  // n'ont pas accès à cette variable. TABLE_W/TABLE_H sont déclarées plus bas,
+  // avec les bornes de pose.
+  const MIN_SCALE = 0.45 // en deçà, cartes illisibles : on laisse défiler
+  let scrollEl
+  let scale = 1
+  function fitScale() {
+    if (!scrollEl) return
+    const pad = 12
+    const s = Math.min(1, (scrollEl.clientWidth - pad) / TABLE_W, (scrollEl.clientHeight - pad) / TABLE_H)
+    scale = Math.max(MIN_SCALE, Math.round(s * 1000) / 1000)
+    refreshRect()
+  }
+
   function refreshRect() {
     if (tableEl) tableRect = tableEl.getBoundingClientRect()
   }
+  // Coordonnées écran -> repère du tapis (non réduit).
+  function toTable(clientX, clientY) {
+    return { x: (clientX - tableRect.left) / scale, y: (clientY - tableRect.top) / scale }
+  }
   onMount(() => {
+    // La zone se redimensionne avec la fenêtre, mais aussi quand le chat se
+    // replie ou que la barre d'outils du navigateur mobile apparaît : un
+    // ResizeObserver couvre tous ces cas, là où 'resize' n'en voit qu'un.
+    const ro = new ResizeObserver(fitScale)
+    ro.observe(scrollEl)
+    fitScale()
     refreshRect()
     window.addEventListener('resize', refreshRect)
     window.addEventListener('scroll', refreshRect, true)
     window.addEventListener('keydown', onGlobalKey)
     return () => {
+      ro.disconnect()
       window.removeEventListener('resize', refreshRect)
       window.removeEventListener('scroll', refreshRect, true)
       window.removeEventListener('keydown', onGlobalKey)
@@ -206,15 +239,15 @@
     const t = e.target
     if (t !== tableEl && !(t.classList && t.classList.contains('felt'))) return
     refreshRect()
-    const x = e.clientX - tableRect.left
-    const y = e.clientY - tableRect.top
+    const { x, y } = toTable(e.clientX, e.clientY)
     marquee = { x0: x, y0: y, x1: x, y1: y }
     marqueeBase = e.shiftKey ? new Set(selected) : new Set()
     tableEl.setPointerCapture(e.pointerId)
   }
   function onTablePointerMove(e) {
     if (!marquee) return
-    marquee = { ...marquee, x1: e.clientX - tableRect.left, y1: e.clientY - tableRect.top }
+    const p = toTable(e.clientX, e.clientY)
+    marquee = { ...marquee, x1: p.x, y1: p.y }
     const xa = Math.min(marquee.x0, marquee.x1), xb = Math.max(marquee.x0, marquee.x1)
     const ya = Math.min(marquee.y0, marquee.y1), yb = Math.max(marquee.y0, marquee.y1)
     // Une carte est retenue si son point d'ancrage (c.x, c.y) tombe dans le
@@ -440,7 +473,7 @@
         // Son coin sup-gauche se convertit directement en coordonnées tapis :
         // c'est bien un coin qu'attend le rendu, cf. `.card-anchor` plus bas.
         const pos = (tableRect && ghostX != null)
-          ? { x: ghostX - tableRect.left, y: ghostY - tableRect.top }
+          ? toTable(ghostX, ghostY)
           : hit
         const snapped = snapPosition(pos.x, pos.y, null)
         dispatch('sabotDraw', { target: TARGETS.TABLE, x: snapped.x, y: snapped.y })
@@ -468,12 +501,19 @@
   }
 </script>
 
-<div class="table-scroll">
+<div class="table-scroll" bind:this={scrollEl}>
+  <!-- L'enveloppe occupe la taille RÉDUITE : un transform ne change pas la
+       place qu'un élément prend dans la mise en page, sans elle la table
+       réduite laisserait derrière elle un vide de 1160×800 et des barres de
+       défilement. -->
+  <div class="table-fit" style="width:{TABLE_W * scale}px; height:{TABLE_H * scale}px;">
   <!-- svelte-ignore a11y-no-static-element-interactions -->
   <div
     bind:this={tableEl}
     class="table"
     data-drop="table"
+    data-scale={scale}
+    style="transform: scale({scale});"
     on:pointerdown={onTablePointerDown}
     on:pointermove={onTablePointerMove}
     on:pointerup={onTablePointerUp}
@@ -494,7 +534,10 @@
       count={sabotCount}
       x={SABOT_POS.x}
       y={SABOT_POS.y}
+      shuffleAt={sabotShuffleAt}
+      {scale}
       on:draw={onSabotDraw}
+      on:shuffle
     />
 
     <!-- Avatars des joueurs connectés -->
@@ -530,7 +573,10 @@
 
     <!-- Badge + actions de sélection multiple -->
     {#if selected.size > 0}
-      <div class="sel-chip">
+      <!-- Contre-échelle : la barre garde sa taille réelle quelle que soit la
+           réduction du tapis, sinon ses boutons deviennent inutilisables au
+           doigt sur tablette. -->
+      <div class="sel-chip" style="transform: translateX(-50%) scale({1 / scale});">
         <span>{selected.size} carte{selected.size > 1 ? 's' : ''}</span>
         {#if selected.size > 1}
           <button title="Regrouper la sélection en une pile" on:click={stackSelection}>Empiler</button>
@@ -545,6 +591,7 @@
       </div>
     {/if}
   </div>
+  </div>
 </div>
 
 <style>
@@ -553,12 +600,21 @@
     overflow: auto;
     position: relative;
     background: #1a120b;
+    /* Centre la table réduite dans la place disponible. */
+    display: grid;
+    place-items: center;
+    min-height: 0;
+  }
+  .table-fit {
+    position: relative;
+    flex: none;
   }
   .table {
-    position: relative;
+    position: absolute;
+    left: 0; top: 0;
     width: 1160px;
-    min-height: 800px;
-    margin: 0 auto;
+    height: 800px;
+    transform-origin: 0 0;
     /* pourtour "bois" : les avatars (assis autour, sur des chaises) reposent
        sur cette zone, le feutre vert n'occupant que le centre de la table.
        Largeur du pourtour ~ largeur du badge joueur (64px, cf. Avatar.svelte
@@ -595,7 +651,8 @@
     position: absolute;
     top: 14px;
     left: 50%;
-    transform: translateX(-50%);
+    transform: translateX(-50%); /* + contre-échelle, posée en ligne */
+    transform-origin: top center;
     display: flex;
     align-items: center;
     gap: 6px;

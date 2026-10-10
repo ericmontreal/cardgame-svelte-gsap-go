@@ -165,6 +165,27 @@ func (app *application) notifyHandChanges(room string, res TransferResult) {
 	}
 }
 
+// announceReceived annonce à toute la salle que des cartes sont entrées dans
+// une main : qui les a reçues, qui a fait le geste, d'où elles viennent et
+// combien. JAMAIS lesquelles — la main reste privée, et le nombre de cartes en
+// main est déjà public (Player.HandCount). Ce qui devient public, c'est l'auteur
+// du geste, comme autour d'une vraie table où l'on voit qui donne à qui.
+func (app *application) announceReceived(room string, by *client, to string, from Zone, count int) {
+	if to == "" || from == "" || count <= 0 {
+		return
+	}
+	app.engine.mu.Lock()
+	toName := app.engine.playerName(to)
+	app.engine.mu.Unlock()
+	app.broadcastMsg(room, Message{
+		Type:   "cardsReceived",
+		Sender: by.userID,
+		Payload: mustJSON(payloadReceivedOut{
+			By: by.name, To: toName, Self: to == by.userID, From: string(from), Count: count,
+		}),
+	}, nil)
+}
+
 // sendPresence diffuse la liste des joueurs connectés (join/leave). On réutilise
 // l'état public pour rester cohérent.
 func (app *application) sendPresence(room string) {
@@ -200,10 +221,12 @@ func (app *application) handleClientMsg(c *client, room string, m Message) {
 			log.Printf("init: config invalide: %v", err)
 			return
 		}
+		app.engine.mu.Lock()
+		// Mélange sous le verrou du moteur : rng (deck.go) n'est pas sûr en
+		// accès concurrent, et ShuffleSabot s'en sert lui aussi.
 		if p.Shuffle {
 			ShuffleDeck(cards)
 		}
-		app.engine.mu.Lock()
 		app.engine.LoadDeck(cards)
 		app.engine.mu.Unlock()
 		log.Printf("init: sabot chargé (%d cartes) par %s", len(cards), c.name)
@@ -346,6 +369,11 @@ func (app *application) handleClientMsg(c *client, room string, m Message) {
 				app.sendHand(room, owner)
 			}
 		}
+		// Ordre fixe des origines : les annonces d'un même lot arrivent dans
+		// le même ordre chez tout le monde.
+		for _, from := range []Zone{ZoneSabot, ZoneTable, ZoneHand} {
+			app.announceReceived(room, c, p.OwnerID, from, res.Received[from])
+		}
 
 	case "transfer":
 		var p payloadTransfer
@@ -366,6 +394,7 @@ func (app *application) handleClientMsg(c *client, room string, m Message) {
 			app.broadcastState(room)
 		}
 		app.notifyHandChanges(room, res)
+		app.announceReceived(room, c, res.HandOwner, res.Received, 1)
 
 	case "sabotDraw":
 		// Drag du sabot (§6) : tire le sommet vers une cible.
@@ -387,6 +416,7 @@ func (app *application) handleClientMsg(c *client, room string, m Message) {
 			app.broadcastState(room)
 		}
 		app.notifyHandChanges(room, res)
+		app.announceReceived(room, c, res.HandOwner, res.Received, 1)
 
 	// --- Abandon de partie -------------------------------------------------
 	case "abandon":
@@ -405,6 +435,24 @@ func (app *application) handleClientMsg(c *client, room string, m Message) {
 			log.Printf("abandon: %s quitte la partie (cartes -> %s)", c.name, policy)
 			app.broadcastState(room)
 			app.sendHand(room, c.userID)
+		}
+
+	// --- Mélange du sabot en cours de partie -------------------------------
+	case "sabotShuffle":
+		// L'état public ne change pas (le sabot n'expose que son nombre de
+		// cartes) : aucune diffusion d'état. On annonce en revanche le geste à
+		// toute la salle, émetteur compris, comme autour d'une vraie table où
+		// chacun voit qui bat les cartes.
+		app.engine.mu.Lock()
+		n := app.engine.ShuffleSabot()
+		app.engine.mu.Unlock()
+		if n > 0 {
+			log.Printf("sabotShuffle: %d cartes mélangées par %s", n, c.name)
+			app.broadcastMsg(room, Message{
+				Type:    "sabotShuffled",
+				Sender:  c.userID,
+				Payload: mustJSON(payloadShuffledOut{By: c.name, Count: n}),
+			}, nil)
 		}
 
 	// --- Enfouissement d'un lot sous le sabot ------------------------------
@@ -443,6 +491,24 @@ func (app *application) handleClientMsg(c *client, room string, m Message) {
 		}
 		app.broadcastMsg(room, out, nil)
 	}
+}
+
+// payloadShuffledOut annonce un mélange du sabot : qui l'a fait, et sur combien
+// de cartes. Le nom est celui du joueur authentifié, jamais une donnée client.
+type payloadShuffledOut struct {
+	By    string `json:"by"`
+	Count int    `json:"count"`
+}
+
+// payloadReceivedOut annonce des cartes entrées dans une main. Self vaut true
+// quand le joueur se sert lui-même (tirage, ramassage). From : "sabot",
+// "table" ou "hand" (la main de By). Aucune information sur les cartes.
+type payloadReceivedOut struct {
+	By    string `json:"by"`
+	To    string `json:"to"`
+	Self  bool   `json:"self"`
+	From  string `json:"from"`
+	Count int    `json:"count"`
 }
 
 // payloadChatOut est le payload renvoyé au client sur un message de chat.

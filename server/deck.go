@@ -149,8 +149,9 @@ var rng = rand.New(rand.NewSource(time.Now().UnixNano()))
 
 // BuildDeck construit la liste des cartes (non mélangées) selon la config.
 // L'ordre est stable et déterministe : decks × couleurs × rangs. Le client
-// peut demander un mélange via un message "shuffle" séparé ; par défaut le
-// sabot est rangé (comme un jeu neuf sorti de la boîte).
+// peut demander un mélange à la création (option shuffle de "init") ou plus
+// tard (message "sabotShuffle", cf. engine.ShuffleSabot) ; par défaut le sabot
+// est rangé (comme un jeu neuf sorti de la boîte).
 func BuildDeck(cfg DeckConfig) ([]Card, error) {
 	cfg, err := cfg.Normalize()
 	if err != nil {

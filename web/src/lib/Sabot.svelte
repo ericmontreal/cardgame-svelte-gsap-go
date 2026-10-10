@@ -2,7 +2,8 @@
   // Sabot (shoe) : pile de cartes face cachée, posée sur le tapis (§11).
   //   - draggable : "glisser le sabot" tire la carte du sommet vers la cible (§6).
   //   - drop target : y déposer une carte la renvoie dans le sabot.
-  import { createEventDispatcher } from 'svelte'
+  //   - bouton « Mélanger » : bat les cartes restées dans le sabot.
+  import { createEventDispatcher, onMount } from 'svelte'
   import { gsap } from 'gsap'
 
   export let count = 0           // nombre de cartes dans le sabot
@@ -10,8 +11,61 @@
   export let y = 40
   export let cardW = 92
   export let cardH = 128
+  // Horodatage du dernier mélange annoncé par le serveur (store sabotShuffle).
+  // Chaque nouvelle valeur rejoue l'animation, chez tous les joueurs.
+  export let shuffleAt = 0
+  // Échelle d'affichage du tapis (Table.svelte). Le fantôme vit hors de la
+  // table réduite : il est dimensionné à la main pour garder la taille des
+  // cartes que le joueur voit.
+  export let scale = 1
 
   const dispatch = createEventDispatcher()
+
+  // ---- Mélange ----------------------------------------------------------------
+  // Le clic n'anime rien par lui-même : il demande le mélange au serveur, et
+  // c'est l'annonce 'sabotShuffled' en retour qui fait battre les cartes. Le
+  // joueur qui clique voit donc exactement ce que voient les autres, et rien
+  // si le serveur a refusé (sabot de moins de deux cartes).
+  let stackEls = []
+  // Valeur présente au montage : un mélange antérieur (avant un passage par le
+  // menu « Nouvelle partie », par ex.) ne doit pas être rejoué au retour.
+  let lastShuffleAt = shuffleAt
+  $: if (shuffleAt && shuffleAt !== lastShuffleAt) {
+    lastShuffleAt = shuffleAt
+    playShuffle()
+  }
+
+  function requestShuffle() {
+    if (count < 2) return
+    dispatch('shuffle')
+  }
+
+  function playShuffle() {
+    const els = stackEls.filter(Boolean)
+    if (els.length === 0) return
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return
+    gsap.killTweensOf(els)
+    // Les dos empilés s'écartent en deux paquets puis se réentrelacent, deux
+    // fois : un battage « à la queue d'aronde » stylisé. À la fin, on rend la
+    // main au CSS (clearProps), qui porte le décalage de l'effet pile.
+    const tl = gsap.timeline({ onComplete: () => gsap.set(els, { clearProps: 'transform' }) })
+    for (let k = 0; k < 2; k++) {
+      tl.to(els, {
+        x: (i) => (i % 2 ? 1 : -1) * cardW * 0.45,
+        y: (i) => -2 * i,
+        rotation: (i) => (i % 2 ? 7 : -7),
+        duration: 0.16,
+        ease: 'power2.out',
+      }).to(els, {
+        x: (i) => -2 * i,
+        y: (i) => -2 * i,
+        rotation: 0,
+        duration: 0.16,
+        ease: 'power2.in',
+        stagger: 0.03,
+      })
+    }
+  }
 
   let dragging = false
   let startX = 0, startY = 0
@@ -30,9 +84,15 @@
   //
   // position:fixed, car les cibles de dépôt (avatars, main du joueur) débordent
   // du tapis : un fantôme positionné dans le repère de la table serait tronqué
-  // dès qu'on sort du feutre. Aucun ancêtre ne porte de transform, le repère
-  // reste donc bien celui de la fenêtre.
+  // dès qu'on sort du feutre. Il est en outre DÉPLACÉ sous <body> au montage :
+  // la table porte désormais un transform (mise à l'échelle), et un ancêtre
+  // transformé capture les éléments fixes — le fantôme aurait suivi le repère
+  // réduit de la table et été rogné par sa zone de défilement.
   let ghostEl = null
+  onMount(() => {
+    // Svelte le détachera de là où il se trouve à la destruction du composant.
+    if (ghostEl) document.body.appendChild(ghostEl)
+  })
   let ghostVisible = false
   let grabDX = 0, grabDY = 0     // point de prise, relatif au coin du sabot
 
@@ -123,6 +183,7 @@
     {#each [0, 1, 2, 3] as i}
       {#if i < Math.min(count, 4)}
         <svg
+          bind:this={stackEls[i]}
           class="stack-card"
           class:top={i === Math.min(count, 4) - 1}
           width={cardW}
@@ -138,6 +199,19 @@
   {/if}
   <div class="badge">{count}</div>
   <div class="label">Sabot</div>
+  <!-- pointerdown arrêté ici : sans cela, le clic remonterait au sabot (début
+       de tirage, capture du pointeur) puis au tapis (rectangle de sélection). -->
+  <!-- Contre-échelle : le bouton garde sa taille réelle sur tablette, où le
+       tapis réduit le rendrait trop petit pour un doigt. -->
+  <button
+    class="shuffle"
+    type="button"
+    style="transform: translateX(-50%) scale({1 / scale});"
+    disabled={count < 2}
+    title={count < 2 ? 'Pas assez de cartes à mélanger' : 'Mélanger les cartes du sabot (le tapis et les mains ne sont pas ramassés)'}
+    on:pointerdown|stopPropagation
+    on:click|stopPropagation={requestShuffle}
+  >Mélanger</button>
 </div>
 
 <!-- Fantôme de tirage. Toujours présent dans le DOM plutôt que monté à la
@@ -153,6 +227,7 @@
   viewBox="0 0 200 280"
   preserveAspectRatio="xMidYMid meet"
   aria-hidden="true"
+  style="width:{cardW * scale}px; height:{cardH * scale}px;"
 >
   <use href="#sym-back" xlink:href="#sym-back"></use>
 </svg>
@@ -205,6 +280,23 @@
     font-family: system-ui, sans-serif;
     white-space: nowrap;
   }
+  .shuffle {
+    position: absolute;
+    top: calc(100% + 30px); left: 50%;
+    transform: translateX(-50%); /* + contre-échelle, posée en ligne */
+    transform-origin: top center;
+    border: 1px solid rgba(255, 210, 122, 0.4);
+    background: rgba(0, 0, 0, 0.55);
+    color: #ffd27a;
+    font-size: 11px;
+    font-family: system-ui, sans-serif;
+    padding: 2px 10px;
+    border-radius: 999px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .shuffle:hover:not(:disabled) { background: rgba(255, 210, 122, 0.22); }
+  .shuffle:disabled { opacity: .45; cursor: default; }
   .sabot.hovered .stack-card.top {
     box-shadow: 0 0 0 4px rgba(255,210,122,0.5), 0 6px 14px rgba(0,0,0,0.5);
   }

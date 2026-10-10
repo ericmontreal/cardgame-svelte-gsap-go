@@ -15,6 +15,7 @@
 //     { type:'dragMany',  payload:{ items:[{cardId,x,y}] } }       positions live groupées
 //     { type:'transferMany', payload:{ cardIds:[...], target, ownerId } }  transfert groupé
 //     { type:'sabotBottomMany', payload:{ cardIds:[...] } }        enfouit un lot SOUS le sabot
+//     { type:'sabotShuffle', payload:{} }                         mélange le sabot en cours de partie
 //     { type:'abandon',   payload:{ policy:'table'|'sabot' } }     quitte la partie
 //     { type:'dragEnd',   payload:{} }                              drop annulé (efface le live)
 //     { type:'transfer',  payload:{ cardId, target, x, y, ownerId } }  change de zone
@@ -28,6 +29,8 @@
 //     { type:'drag',    payload:{ cardId, x, y } } (drag live d'un autre client)
 //     { type:'dragMany',payload:{ items:[{cardId,x,y}] } } (drag groupé d'un autre client)
 //     { type:'dragEnd', payload:{} } (drop annulé d'un autre client : effacer le live)
+//     { type:'sabotShuffled', sender, payload:{ by, count } } (mélange annoncé à toute la salle)
+//     { type:'cardsReceived', sender, payload:{ by, to, self, from, count } } (cartes entrées dans une main)
 //     { type:'chat',    sender, payload:{ author, text, at } }
 //     { type:'pong' }
 
@@ -209,6 +212,11 @@ export function createWsClient(opts = {}) {
     // sendTransferMany(..., 'sabot'), qui empile au sommet.
     sendSabotBottomMany(cardIds) {
       return send({ type: 'sabotBottomMany', payload: { cardIds } })
+    },
+    // Mélange les cartes restées dans le sabot. Le tapis et les mains ne sont
+    // pas ramassés ; le serveur répond par 'sabotShuffled' à toute la salle.
+    sendSabotShuffle() {
+      return send({ type: 'sabotShuffle', payload: {} })
     },
     // Quitte la partie. policy : 'table' (main étalée face cachée devant sa
     // chaise) ou 'sabot' (main enfouie au fond du sabot).

@@ -81,6 +81,7 @@
   let startX = 0, startY = 0      // position initiale du pointeur
   let originX = 0, originY = 0    // position initiale de la carte (transform)
   let curX = 0, curY = 0          // dernière position suivie (centre carte) pendant le drag
+  let dragScale = 1               // échelle du tapis au début du drag (cf. onPointerDown)
 
   function onPointerDown(e) {
     if (!draggable) return
@@ -94,6 +95,10 @@
     startY = e.clientY
     originX = c.x
     originY = c.y
+    // Échelle du tapis (Table.svelte, data-scale) : le pointeur se déplace en
+    // pixels d'écran, la carte en pixels du tapis non réduit. Une carte en
+    // main n'a pas d'ancêtre réduit : échelle 1.
+    dragScale = Number(rootEl?.closest('[data-scale]')?.dataset.scale) || 1
     // Capturer dès pointerdown (et pas seulement après le seuil de 3px, cf.
     // onPointerMove) : sinon un mouvement rapide/ample peut sortir le
     // curseur de la petite carte avant que la capture ne s'engage, et les
@@ -108,9 +113,12 @@
 
   function onPointerMove(e) {
     if (!dragging) return
-    const dx = e.clientX - startX
-    const dy = e.clientY - startY
-    if (!moved && Math.hypot(dx, dy) > 3) moved = true
+    // Seuil mesuré à l'écran (geste du joueur), delta converti dans le repère
+    // du tapis : c'est aussi celui du transform GSAP ci-dessous, appliqué à
+    // l'intérieur de la table réduite.
+    if (!moved && Math.hypot(e.clientX - startX, e.clientY - startY) > 3) moved = true
+    const dx = (e.clientX - startX) / dragScale
+    const dy = (e.clientY - startY) / dragScale
     if (!moved) return
     const nx = originX + dx
     const ny = originY + dy

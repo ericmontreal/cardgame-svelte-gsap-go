@@ -140,11 +140,20 @@
     <button class="hide" on:click={toggle} title="Masquer le chat">›</button>
   </div>
   <div class="list" bind:this={listEl}>
-    {#each $chatLog as msg (msg.at + '|' + msg.author + '|' + msg.text)}
-      <div class="msg">
-        <span class="meta"><b>{msg.author}</b> <time>{clock(msg.at)}</time></span>
-        <span class="body">{msg.text}</span>
-      </div>
+    {#each $chatLog as msg (msg.id)}
+      {#if msg.system}
+        <!-- Annonce de la table (mélange du sabot…) : produite localement à
+             partir d'un message serveur, jamais saisie par un joueur. -->
+        <div class="msg system">
+          <span class="body">{msg.text}</span>
+          <time>{clock(msg.at)}</time>
+        </div>
+      {:else}
+        <div class="msg">
+          <span class="meta"><b>{msg.author}</b> <time>{clock(msg.at)}</time></span>
+          <span class="body">{msg.text}</span>
+        </div>
+      {/if}
     {:else}
       <div class="empty">Soyez le premier à parler…</div>
     {/each}
@@ -240,6 +249,12 @@
   .meta { font-size: .72rem; opacity: .85; display: flex; gap: 6px; align-items: baseline; }
   .meta time { opacity: .7; font-weight: 400; }
   .body { color: #eef; font-size: .9rem; word-break: break-word; }
+  .msg.system {
+    flex-direction: row; align-items: baseline; justify-content: space-between; gap: 6px;
+    padding: 2px 6px; border-left: 2px solid rgba(255,210,122,0.6);
+  }
+  .msg.system .body { color: #ffd27a; font-size: .8rem; font-style: italic; }
+  .msg.system time { font-size: .72rem; opacity: .6; }
   .empty { color: rgba(255,255,255,0.4); font-size: .85rem; align-self: center; margin-top: 1rem; }
   .composer { display: flex; gap: 6px; padding: 8px; border-top: 1px solid rgba(255,255,255,0.1); }
   .composer input {

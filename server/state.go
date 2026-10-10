@@ -354,6 +354,23 @@ func (e *engine) LoadDeck(cards []Card) {
 // Initialized indique si un sabot a été chargé.
 func (e *engine) Initialized() bool { return len(e.cards) > 0 }
 
+// ShuffleSabot mélange les cartes restées dans le sabot (Fisher-Yates), en
+// cours de partie. Seul l'ordre de e.sabot change : les cartes du tapis et des
+// mains ne sont pas ramassées — on mélange le paquet qu'on a devant soi, pas la
+// table. Toute pile enfouie au fond (abandon, « Au fond du sabot ») est donc
+// redistribuée dans le paquet : c'est le sens même du geste. Renvoie le nombre
+// de cartes mélangées, ou 0 s'il y en a moins de deux (rien à mélanger).
+func (e *engine) ShuffleSabot() int {
+	n := len(e.sabot)
+	if n < 2 {
+		return 0
+	}
+	rng.Shuffle(n, func(i, j int) {
+		e.sabot[i], e.sabot[j] = e.sabot[j], e.sabot[i]
+	})
+	return n
+}
+
 // ---- Helpers (sous e.mu verrouillé) --------------------------------------
 
 // findCard retourne un pointeur vers la carte d'ID donné, ou nil.
@@ -497,6 +514,9 @@ type BatchTransferResult struct {
 	PublicChanged  bool
 	HandOwners     map[string]bool // mains ayant gagné des cartes (notif ciblée)
 	FromHandOwners map[string]bool // mains ayant perdu des cartes (notif ciblée)
+	// Received compte, par zone d'origine, les cartes qui ont changé de main
+	// (cf. TransferResult.Received). Un lot n'a qu'un destinataire : ownerID.
+	Received map[Zone]int
 }
 
 // TransferMany transfère un lot de cartes vers une même cible (sabot, avatar
@@ -507,7 +527,7 @@ type BatchTransferResult struct {
 // que soit l'ordre du payload client. Les cartes encore au sabot sont
 // exclues : leur retrait de e.sabot n'est géré que par DrawSabot.
 func (e *engine) TransferMany(ids []string, target DropTarget, ownerID string) BatchTransferResult {
-	res := BatchTransferResult{HandOwners: map[string]bool{}, FromHandOwners: map[string]bool{}}
+	res := BatchTransferResult{HandOwners: map[string]bool{}, FromHandOwners: map[string]bool{}, Received: map[Zone]int{}}
 	if target == TargetTable {
 		return res
 	}
@@ -533,6 +553,9 @@ func (e *engine) TransferMany(ids []string, target DropTarget, ownerID string) B
 		}
 		if r.FromHandOwner != "" {
 			res.FromHandOwners[r.FromHandOwner] = true
+		}
+		if r.Received != "" {
+			res.Received[r.Received]++
 		}
 	}
 	return res
@@ -564,6 +587,10 @@ type TransferResult struct {
 	PublicChanged bool   // l'état public (table/sabot) a changé -> broadcast
 	HandOwner     string // une carte est entrée dans la main de ce joueur (notif ciblée)
 	FromHandOwner string // une carte est sortie de la main de ce joueur (notif ciblée)
+	// Received est la zone d'où vient une carte qui a CHANGÉ DE MAIN (sabot,
+	// table ou main d'un autre joueur), vide sinon. Une carte reposée dans la
+	// main qui la tenait déjà n'est pas une réception : rien à annoncer.
+	Received Zone
 }
 
 // applyTransfer réalise le transfert d'une carte déjà identifiée vers une cible.
@@ -627,10 +654,19 @@ func (e *engine) applyTransfer(c *Card, fromZone Zone, t Transfer, dealt bool) T
 		if dealt {
 			c.FaceUp = true // distribution depuis le sabot : visible par son propriétaire
 		}
+		received := fromZone
+		if fromZone == ZoneHand && prevHandOwner == t.OwnerID {
+			received = ""
+		}
 		return TransferResult{
-			PublicChanged: fromZone.public(), // si elle venait de la table/sabot, le public change
+			// Public si elle venait de la table/sabot, mais AUSSI pour un don
+			// de main à main : le nombre de cartes en main de chacun est
+			// public (Player.HandCount). Sans diffusion, les badges des deux
+			// avatars restaient périmés chez tout le monde.
+			PublicChanged: fromZone.public() || received != "",
 			HandOwner:     t.OwnerID,
 			FromHandOwner: prevHandOwner,
+			Received:      received,
 		}
 	}
 	return TransferResult{}
@@ -667,6 +703,15 @@ func (e *engine) DrawSabot(t Transfer) (string, TransferResult) {
 	// est révélée dans sa nouvelle zone.
 	res := e.applyTransfer(c, ZoneSabot, t, true)
 	return id, res
+}
+
+// playerName renvoie le nom affiché d'un joueur, ou son identifiant s'il n'est
+// plus à table (le nom n'est connu que des joueurs présents).
+func (e *engine) playerName(userID string) string {
+	if p, ok := e.players[userID]; ok && p.Name != "" {
+		return p.Name
+	}
+	return userID
 }
 
 // ---- Snapshots (sérialisation) -------------------------------------------

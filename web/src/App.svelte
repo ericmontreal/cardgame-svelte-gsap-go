@@ -6,7 +6,7 @@
 
   import {
     tableState, myHand, wsStatus,
-    applyState, applyHand, applyChat, liveDrag,
+    applyState, applyHand, applyChat, liveDrag, sabotShuffle, applySabotShuffled, applyCardsReceived,
     loadSession, saveSession, clearSession, resetLocal, login, isSessionValid,
   } from './lib/store.js'
   import { createWsClient } from './lib/ws-client.js'
@@ -99,6 +99,14 @@
       case 'chat':
         applyChat(msg)
         break
+      case 'sabotShuffled':
+        // Mélange du sabot par un joueur (soi compris) : animation + trace.
+        applySabotShuffled(msg)
+        break
+      case 'cardsReceived':
+        // Cartes entrées dans une main (tirage, don, ramassage) : trace au chat.
+        applyCardsReceived(msg)
+        break
       case 'drag':
         // Drag live d'un autre joueur : positions éphémères (cardId -> {x,y}).
         if (msg.payload) {
@@ -153,6 +161,7 @@
     ws?.sendTransferMany(d.cardIds, d.target, d.ownerId ?? '')
   }
   function sendSabotBottomMany(e) { ws?.sendSabotBottomMany(e.detail.cardIds) }
+  function sendSabotShuffle() { ws?.sendSabotShuffle() }
   function sendDragEnd() { ws?.sendDragEnd() }
   function sendFlip(e)    { ws?.sendFlip(e.detail.cardId) }
   function sendFront(e)   { ws?.sendFront(e.detail.cardId) }
@@ -245,6 +254,17 @@
   $: hand = $myHand
 </script>
 
+<!-- Le jeu ne se joue qu'en paysage. En portrait, sur tablette ou téléphone,
+     la table réduite devenait trop petite pour être jouable : on demande de
+     tourner l'appareil plutôt que d'offrir une partie au rabais. L'écran est
+     purement CSS (media query) : il apparaît et disparaît avec la rotation,
+     sans toucher à la connexion ni à l'état de la partie. -->
+<div class="rotate-hint" role="alert">
+  <div class="rotate-icon" aria-hidden="true">📱</div>
+  <p><b>Tournez votre appareil</b></p>
+  <p>La table de cartes se joue à l'horizontale.</p>
+</div>
+
 <main class="app">
   {#if step === 'auth'}
     <Login notice={errorMsg} on:success={onLoginSuccess} />
@@ -282,24 +302,53 @@
         <div class="modal-backdrop" on:click={cancelLeave}>
           <div class="modal" on:click|stopPropagation>
             <h2>Quitter la partie ?</h2>
-            <p>
-              Vous abandonnez : votre chaise restera <b>grisée</b> à table et vos
-              {hand.length} carte{hand.length > 1 ? 's' : ''} ne vous
-              reviendront pas. Que deviennent-elles ?
-            </p>
-            <div class="leave-choices">
-              <button class="choice" on:click={() => confirmLeave('table')}>
-                <b>Sur le tapis</b>
-                <small>Étalées face cachée devant votre chaise. Les autres joueurs pourront les ranger.</small>
-              </button>
-              <button class="choice" on:click={() => confirmLeave('sabot')}>
-                <b>Au fond du sabot</b>
-                <small>Enfouies sous le sabot : elles ne ressortiront qu'en dernier, et personne ne les verra.</small>
-              </button>
-            </div>
-            <div class="modal-actions">
-              <button class="cancel" on:click={cancelLeave}>Rester à table</button>
-            </div>
+            {#if hand.length === 0}
+              <!-- Main vide : il n'y a rien à décider sur les cartes. Proposer
+                   « tapis » ou « sabot » pour zéro carte n'avait aucun sens ;
+                   une simple confirmation suffit. -->
+              <p>
+                Vous abandonnez : votre chaise restera <b>grisée</b> à table
+                jusqu'à la prochaine partie. Vous n'avez aucune carte en main,
+                il n'y a donc rien à ranger.
+              </p>
+              <div class="modal-actions">
+                <button class="cancel" on:click={cancelLeave}>Rester à table</button>
+                <!-- La politique est indifférente sans carte ; 'table' est la
+                     valeur de repli du serveur (normalizeAbandonPolicy). -->
+                <button class="confirm" on:click={() => confirmLeave('table')}>Quitter la partie</button>
+              </div>
+            {:else}
+              {@const one = hand.length === 1}
+              <p>
+                Vous abandonnez : votre chaise restera <b>grisée</b> à table, et
+                {#if one}
+                  la carte de votre main ne vous reviendra pas. Que devient-elle ?
+                {:else}
+                  les <b>{hand.length} cartes</b> de votre main ne vous reviendront
+                  pas. Que deviennent-elles ?
+                {/if}
+              </p>
+              <div class="leave-choices">
+                <button class="choice" on:click={() => confirmLeave('table')}>
+                  <b>Sur le tapis</b>
+                  <small>
+                    {one ? 'Posée' : 'Étalées'} face cachée devant votre chaise.
+                    Les autres joueurs pourront {one ? 'la' : 'les'} ranger.
+                  </small>
+                </button>
+                <button class="choice" on:click={() => confirmLeave('sabot')}>
+                  <b>Au fond du sabot</b>
+                  <small>
+                    {one ? 'Enfouie' : 'Enfouies'} sous le sabot :
+                    {one ? 'elle ne ressortira' : 'elles ne ressortiront'} qu'en dernier,
+                    et personne ne {one ? 'la' : 'les'} verra.
+                  </small>
+                </button>
+              </div>
+              <div class="modal-actions">
+                <button class="cancel" on:click={cancelLeave}>Rester à table</button>
+              </div>
+            {/if}
           </div>
         </div>
       {/if}
@@ -322,6 +371,7 @@
           table={st.table}
           players={st.players}
           sabotCount={st.sabotCount}
+          sabotShuffleAt={$sabotShuffle?.at ?? 0}
           initialized={st.initialized}
           myUserId={session.id}
           snapEnabled={snapEnabled}
@@ -337,6 +387,7 @@
           on:front={sendFront}
           on:transfer={sendTransfer}
           on:sabotDraw={sendSabotDraw}
+          on:shuffle={sendSabotShuffle}
         />
 
         <Chat onSend={sendChat} />
@@ -355,7 +406,37 @@
   :global(html, body, #app) { height: 100%; margin: 0; }
   :global(body) { background: #062016; color: #eef; font-family: system-ui, sans-serif; }
 
-  .app { height: 100vh; display: flex; flex-direction: column; }
+  /* 100dvh : sur iPad/iPhone, 100vh vaut la hauteur SANS la barre d'outils de
+     Safari, plus grande que la zone visible — la page débordait et la barre
+     supérieure glissait hors de l'écran. 100vh reste en repli. */
+  .app { height: 100vh; height: 100dvh; display: flex; flex-direction: column; }
+
+  .rotate-hint { display: none; }
+  /* pointer: coarse limite le blocage aux écrans tactiles (tablette, téléphone).
+     Sur ordinateur, une fenêtre plus haute que large reste jouable : la table
+     s'y réduit comme ailleurs, et la souris garde toute sa précision. */
+  @media (orientation: portrait) and (pointer: coarse) {
+    .rotate-hint {
+      position: fixed; inset: 0; z-index: 10000;
+      display: grid; place-content: center; justify-items: center; gap: .4rem;
+      padding: 2rem; text-align: center;
+      background: radial-gradient(circle at 50% 30%, #1c6e4b 0%, #0d3a26 70%, #062016 100%);
+      color: #eef; font-family: system-ui, sans-serif;
+    }
+    .rotate-hint p { margin: 0; font-size: 1rem; opacity: .85; }
+    .rotate-hint b { font-size: 1.25rem; color: #ffd27a; }
+    .rotate-icon {
+      font-size: 3.5rem; margin-bottom: .8rem;
+      animation: rotate-hint 2.4s ease-in-out infinite;
+    }
+  }
+  @keyframes rotate-hint {
+    0%, 25% { transform: rotate(0deg); }
+    55%, 100% { transform: rotate(-90deg); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .rotate-icon { animation: none; transform: rotate(-90deg); }
+  }
 
   .connecting {
     min-height: 100vh; display: grid; place-items: center; align-content: center;
@@ -371,7 +452,10 @@
   }
   .stuck button:hover { background: #36b46f; }
 
-  .layout { flex: 1; display: grid; grid-template-rows: auto 1fr auto; min-height: 0; }
+  /* minmax(0, 1fr) et non 1fr : un 1fr nu vaut minmax(auto, 1fr), et la table
+     (1160×800) imposait alors sa taille à la grille au lieu de s'y adapter. La
+     zone centrale doit pouvoir rétrécir pour que Table.svelte réduise le tapis. */
+  .layout { flex: 1; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; min-height: 0; }
 
   .topbar {
     display: flex; align-items: center; gap: 1rem;
@@ -393,7 +477,10 @@
   }
   .newgame:hover, .logout:hover { background: rgba(255,255,255,0.1); }
 
-  .body { display: grid; grid-template-columns: 1fr auto; min-height: 0; }
+  .body {
+    display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: minmax(0, 1fr);
+    min-height: 0;
+  }
 
   .modal-backdrop {
     position: fixed; inset: 0; z-index: 1000;

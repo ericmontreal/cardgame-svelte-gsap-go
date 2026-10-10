@@ -160,6 +160,7 @@ et pas d'upgrade. La convention complète est documentée en tête de
 | `flip` `front` `rotate` `move` | mutations sur une carte |
 | `flipMany` `moveMany` `transferMany` | mêmes opérations par lot (sélection multiple), **une** diffusion |
 | `transfer` `sabotDraw` | changement de zone ; `sabotDraw` tire le sommet du sabot |
+| `sabotShuffle` | mélange les cartes restées dans le sabot (ni le tapis ni les mains) |
 | `drag` `dragMany` `dragEnd` | positions live pendant un glisser, simple relais aux autres |
 | `chat` | relayé **signé** : le serveur réinjecte le nom authentifié |
 | `ping` | keep-alive applicatif |
@@ -169,6 +170,8 @@ et pas d'upgrade. La convention complète est documentée en tête de
 | `state` | toute la salle : sabot (nombre), tapis, joueurs, `initialized` |
 | `hand` | le propriétaire seul |
 | `drag` `dragMany` `dragEnd` | relais des glissers des autres |
+| `sabotShuffled` | toute la salle : qui a mélangé, et combien de cartes |
+| `cardsReceived` | toute la salle : qui a reçu combien de cartes, d'où, et de qui — jamais lesquelles |
 | `chat` `pong` | — |
 
 Les messages `drag*` sont le seul flux qui **ne passe pas** par l'état
@@ -186,6 +189,13 @@ légalité d'un coup — il n'y a pas de coup légal.
 - **Composition du sabot** au menu d'initialisation : nombre de jeux (1 à 8),
   couleurs et rangs à la carte, jokers (aucun / noir / rouge / les deux),
   mélange Fisher-Yates optionnel.
+- **Mélange en cours de partie** : le bouton « Mélanger », sous le sabot, bat
+  les cartes qui y restent. Le tapis et les mains ne sont pas ramassés ; une
+  pile enfouie au fond du sabot est redistribuée dans le paquet. Tous les
+  joueurs voient le sabot se battre, et le chat note qui l'a fait.
+- **Journal des distributions** : le chat note chaque carte qui entre dans une
+  main — « bob a reçu une carte du sabot, donnée par alice », « alice a ramassé
+  2 cartes du tapis ». Il dit qui, combien et d'où, jamais quelles cartes.
 - **Glisser-déposer** entre sabot, tapis, main et avatars des autres joueurs.
   Une carte donnée depuis le sabot est révélée à son destinataire ; un simple
   déplacement ne change **jamais** l'état face — un joueur qui a retourné sa
@@ -198,6 +208,10 @@ légalité d'un coup — il n'y a pas de coup légal.
 - **Aimantage** optionnel d'une carte lâchée près d'une autre.
 - **Avatars** répartis autour de la table, portant le nombre de cartes en main.
 - **Chat**, statut de connexion, reconnexion automatique avec backoff.
+- **Tablettes** : la table se réduit d'un bloc pour tenir dans la place
+  disponible (jamais agrandie). Le jeu se joue **en paysage uniquement** : en
+  portrait, un écran tactile affiche « Tournez votre appareil ». Une fenêtre
+  d'ordinateur plus haute que large n'est pas bloquée.
 - **Nouvelle partie** sous confirmation : le sabot est remplacé et **toutes**
   les mains sont vidées, immédiatement, pour tout le monde.
 
@@ -213,8 +227,8 @@ cd web    && npm test
 
 Couvert : `deck.go` (composition, normalisation de config, mélange), `hub.go`
 (join/leave, broadcast, isolation par salle, concurrence), `state.go` (mutations,
-transferts, lots, snapshots) — 34 tests Go. Côté front, `deck.test.js` couvre
-`deck.js`. Les manques sont listés plus bas.
+transferts, lots, mélange du sabot, snapshots) — 45 tests Go. Côté front, `deck.test.js` couvre
+`deck.js`, et `store.test.js` la rédaction des annonces de distribution. Les manques sont listés plus bas.
 
 ## Sécurité
 
