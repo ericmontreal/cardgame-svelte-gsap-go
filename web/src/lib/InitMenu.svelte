@@ -94,7 +94,11 @@
     <h2>Préparation du sabot</h2>
     <p class="subtitle">Choisissez la composition du jeu, puis ouvrez la table.</p>
 
-    <fieldset>
+    <!-- Rubriques sur deux colonnes : empilées sur une seule, elles rendaient
+         la fenêtre plus haute qu'une tablette en paysage, et la ligne des
+         boutons tombait sous le bord de l'écran. -->
+    <div class="fields">
+    <fieldset class="wide">
       <legend>Valeurs des cartes</legend>
       <div class="row ranks">
         <label class="chip none" class:checked={!validRanks}>
@@ -124,15 +128,6 @@
     </fieldset>
 
     <fieldset>
-      <legend>Nombre de jeux</legend>
-      <div class="row deck">
-        <button type="button" on:click={() => (deckCount = Math.max(1, deckCount - 1))}>−</button>
-        <strong class="count">{deckCount}</strong>
-        <button type="button" on:click={() => (deckCount = Math.min(8, deckCount + 1))}>+</button>
-      </div>
-    </fieldset>
-
-    <fieldset>
       <legend>Jokers</legend>
       <div class="row jokers">
         {#each [['none', 'Aucun'], ['red', 'Le rouge'], ['black', 'Le noir'], ['both', 'Tous']] as [val, lbl]}
@@ -141,6 +136,15 @@
             <span>{lbl}</span>
           </label>
         {/each}
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Nombre de jeux</legend>
+      <div class="row deck">
+        <button type="button" on:click={() => (deckCount = Math.max(1, deckCount - 1))}>−</button>
+        <strong class="count">{deckCount}</strong>
+        <button type="button" on:click={() => (deckCount = Math.min(8, deckCount + 1))}>+</button>
       </div>
     </fieldset>
 
@@ -155,6 +159,7 @@
         Aimanter les cartes proches (placement côte à côte)
       </label>
     </fieldset>
+    </div>
 
     <div class="summary">
       <span>Aperçu : <strong>{estCards}</strong> carte{estCards > 1 ? 's' : ''}</span>
@@ -173,22 +178,31 @@
 
 <style>
   .init-wrap {
-    min-height: 100vh; display: grid; place-items: center;
+    /* 100dvh : zone réellement visible sous la barre d'outils des navigateurs
+       mobiles (cf. App.svelte). Le padding garde un peu d'air autour du cadre,
+       et la page défile encore si l'écran est vraiment trop bas. */
+    min-height: 100vh; min-height: 100dvh; box-sizing: border-box; padding: 12px;
+    display: grid; place-items: center;
     background: radial-gradient(circle at 50% 30%, #1c6e4b 0%, #0d3a26 70%, #062016 100%);
     font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   }
   .init-card {
-    width: min(560px, 94vw);
+    width: min(980px, 96vw);
+    box-sizing: border-box;
     background: rgba(10, 30, 22, 0.92);
     color: #eef;
-    padding: 1.6rem 1.6rem 1.3rem;
+    padding: 1.2rem 1.6rem 1.1rem;
     border-radius: 14px;
     border: 1px solid rgba(255,255,255,0.08);
     box-shadow: 0 20px 60px rgba(0,0,0,0.45);
   }
   h2 { margin: 0 0 .2rem; font-size: 1.35rem; }
-  .subtitle { margin: 0 0 1rem; opacity: .7; font-size: .88rem; }
-  fieldset { border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; padding: .7rem .9rem; margin: .6rem 0; }
+  .subtitle { margin: 0 0 .6rem; opacity: .7; font-size: .88rem; }
+  .fields { display: grid; grid-template-columns: 1fr 1fr; column-gap: .9rem; }
+  .fields .wide { grid-column: 1 / -1; }
+  /* En portrait étroit (téléphone), retour à une seule colonne. */
+  @media (max-width: 700px) { .fields { grid-template-columns: 1fr; } }
+  fieldset { border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; padding: .6rem .9rem; margin: .4rem 0; min-width: 0; }
   legend { padding: 0 .4rem; font-size: .8rem; opacity: .8; text-transform: uppercase; letter-spacing: .04em; }
   .row { display: flex; gap: .6rem; align-items: center; flex-wrap: wrap; }
   .row.ranks .chip { padding: .4rem .6rem; }
@@ -212,9 +226,9 @@
   .opt { display: flex; align-items: center; gap: .5rem; cursor: pointer; font-size: .9rem; }
   .opt + .opt { margin-top: .5rem; }
   .opt input { accent-color: #2f9e63; }
-  .summary { margin: .9rem 0 .4rem; font-size: .9rem; opacity: .9; display: flex; gap: .6rem; align-items: center; flex-wrap: wrap; }
+  .summary { margin: .6rem 0 .3rem; font-size: .9rem; opacity: .9; display: flex; gap: .6rem; align-items: center; flex-wrap: wrap; }
   .warn { color: #ffd27a; font-size: .85rem; }
-  .actions { display: flex; gap: .6rem; margin-top: .8rem; }
+  .actions { display: flex; gap: .6rem; margin-top: .6rem; }
   .reset {
     padding: .75rem 1rem; border-radius: 9px; cursor: pointer;
     background: transparent; border: 1px solid rgba(255,255,255,0.25); color: #eef; font-size: .95rem;
