@@ -570,6 +570,40 @@ func TestHandListsCardsInArrivalOrder(t *testing.T) {
 	}
 }
 
+func TestReorderHandFollowsThePlayersChoice(t *testing.T) {
+	e := newEngineWithCards(t, 6)
+	e.ensurePlayer("u-alice", "alice", tableW, tableH)
+	e.ensurePlayer("u-bob", "bob", tableW, tableH)
+	a, _ := e.DrawSabot(Transfer{Target: TargetHand, OwnerID: "u-alice"})
+	b, _ := e.DrawSabot(Transfer{Target: TargetHand, OwnerID: "u-alice"})
+	c, _ := e.DrawSabot(Transfer{Target: TargetHand, OwnerID: "u-alice"})
+	bobs, _ := e.DrawSabot(Transfer{Target: TargetHand, OwnerID: "u-bob"})
+
+	// Alice range c, a, b — et tente d'y glisser une carte de Bob et un ID
+	// inconnu, qui doivent être ignorés.
+	if !e.ReorderHand("u-alice", []string{c, bobs, "c-999", a, b, a}) {
+		t.Fatal("le rangement aurait dû s'appliquer")
+	}
+	got := e.snapshotHand("u-alice").Cards
+	if len(got) != 3 || got[0].ID != c || got[1].ID != a || got[2].ID != b {
+		t.Fatalf("ordre choisi c a b attendu, obtenu %v", got)
+	}
+	if h := e.snapshotHand("u-bob").Cards; len(h) != 1 || h[0].ID != bobs {
+		t.Fatalf("la main de Bob ne doit pas être touchée, obtenu %v", h)
+	}
+	// Une carte absente de la liste (arrivée entre-temps) passe à droite.
+	d, _ := e.DrawSabot(Transfer{Target: TargetHand, OwnerID: "u-alice"})
+	e.ReorderHand("u-alice", []string{b, a, c})
+	got = e.snapshotHand("u-alice").Cards
+	if got[0].ID != b || got[1].ID != a || got[2].ID != c || got[3].ID != d {
+		t.Fatalf("ordre b a c puis %s attendu, obtenu %v", d, got)
+	}
+	// Rien de valide dans la liste : rien à faire.
+	if e.ReorderHand("u-alice", []string{bobs}) {
+		t.Fatal("une liste sans carte de la main ne doit rien ranger")
+	}
+}
+
 func TestShuffleSabotKeepsSameCardsAndLeavesTableAndHandsAlone(t *testing.T) {
 	e := newEngineWithCards(t, 52)
 	e.ensurePlayer("u-alice", "alice", tableW, tableH)

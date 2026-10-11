@@ -6,7 +6,7 @@
 
   import {
     tableState, myHand, wsStatus,
-    applyState, applyHand, applyChat, liveDrag, sabotShuffle, applySabotShuffled, applyCardsReceived,
+    applyState, applyHand, applyChat, liveDrag, sabotShuffle, applySabotShuffled, applyCardsReceived, reorderHand,
     loadSession, saveSession, clearSession, resetLocal, login, isSessionValid,
   } from './lib/store.js'
   import { createWsClient } from './lib/ws-client.js'
@@ -163,6 +163,10 @@
   }
   function sendSabotBottomMany(e) { ws?.sendSabotBottomMany(e.detail.cardIds) }
   function sendSabotShuffle() { ws?.sendSabotShuffle() }
+  function sendHandOrder(e) {
+    reorderHand(e.detail.cardIds)
+    ws?.sendHandOrder(e.detail.cardIds)
+  }
   function sendDragEnd() { ws?.sendDragEnd() }
   function sendFlip(e)    { ws?.sendFlip(e.detail.cardId) }
   function sendFront(e)   { ws?.sendFront(e.detail.cardId) }
@@ -442,6 +446,7 @@
           on:flip={sendFlip}
           on:front={sendFront}
           on:transfer={sendTransfer}
+          on:reorder={sendHandOrder}
         />
         </div>
 

@@ -16,6 +16,7 @@
 //     { type:'transferMany', payload:{ cardIds:[...], target, ownerId } }  transfert groupé
 //     { type:'sabotBottomMany', payload:{ cardIds:[...] } }        enfouit un lot SOUS le sabot
 //     { type:'sabotShuffle', payload:{} }                         mélange le sabot en cours de partie
+//     { type:'handOrder', payload:{ cardIds:[...] } }             ordre de sa propre main (gauche → droite)
 //     { type:'abandon',   payload:{ policy:'table'|'sabot' } }     quitte la partie
 //     { type:'dragEnd',   payload:{} }                              drop annulé (efface le live)
 //     { type:'transfer',  payload:{ cardId, target, x, y, ownerId } }  change de zone
@@ -215,6 +216,11 @@ export function createWsClient(opts = {}) {
     },
     // Mélange les cartes restées dans le sabot. Le tapis et les mains ne sont
     // pas ramassés ; le serveur répond par 'sabotShuffled' à toute la salle.
+    // Ordre choisi par le joueur pour sa main, de gauche à droite. Un serveur
+    // qui ne connaît pas ce message l'ignore : l'ordre reste alors local.
+    sendHandOrder(cardIds) {
+      return send({ type: 'handOrder', payload: { cardIds } })
+    },
     sendSabotShuffle() {
       return send({ type: 'sabotShuffle', payload: {} })
     },

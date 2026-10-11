@@ -205,6 +205,17 @@ export function applyHand(payload) {
   myHand.update((prev) => mergeHandOrder(prev, cards))
 }
 
+// Réordonne la main localement (glisser une carte dans sa propre main), sans
+// attendre le serveur : l'ordre est d'abord une affaire d'affichage.
+export function reorderHand(cardIds) {
+  myHand.update((cards) => {
+    const byId = new Map(cards.map((c) => [c.id, c]))
+    const listed = cardIds.filter((id) => byId.has(id)).map((id) => byId.get(id))
+    const rest = cards.filter((c) => !cardIds.includes(c.id))
+    return [...listed, ...rest]
+  })
+}
+
 export function mergeHandOrder(prev, cards) {
   const place = new Map(prev.map((c, i) => [c.id, i]))
   const kept = cards.filter((c) => place.has(c.id)).sort((a, b) => place.get(a.id) - place.get(b.id))

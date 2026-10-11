@@ -441,6 +441,24 @@ func (app *application) handleClientMsg(c *client, room string, m Message) {
 			app.sendHand(room, c.userID)
 		}
 
+	// --- Ordre de sa propre main ------------------------------------------
+	case "handOrder":
+		// Le joueur range sa main par glisser. Affaire privée : seule sa main
+		// est renvoyée (à tous ses onglets), l'état public ne change pas.
+		var p payloadFlipMany // même forme : une liste d'IDs
+		if err := json.Unmarshal(m.Payload, &p); err != nil {
+			return
+		}
+		if len(p.CardIDs) == 0 || len(p.CardIDs) > maxBatchSize {
+			return
+		}
+		app.engine.mu.Lock()
+		ok := app.engine.ReorderHand(c.userID, p.CardIDs)
+		app.engine.mu.Unlock()
+		if ok {
+			app.sendHand(room, c.userID)
+		}
+
 	// --- Mélange du sabot en cours de partie -------------------------------
 	case "sabotShuffle":
 		// L'état public ne change pas (le sabot n'expose que son nombre de

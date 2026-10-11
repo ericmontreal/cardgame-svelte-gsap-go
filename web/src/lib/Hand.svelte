@@ -40,11 +40,31 @@
     if (hit && (hit.target === TARGETS.AVATAR)) {
       dispatch('transfer', { cardId, target: TARGETS.AVATAR, ownerId: hit.ownerId })
     } else if (hit && hit.target === TARGETS.HAND) {
-      // rester dans ma propre main -> pas de changement de zone.
+      // Lâchée dans sa propre main : la carte change de place dans la main.
+      reorder(cardId, clientX)
     } else {
       // Par défaut, déposer hors de la main = poser sur la table.
       dispatch('transfer', { cardId, target: TARGETS.TABLE, x: hit?.x ?? 0, y: hit?.y ?? 0 })
     }
+  }
+  // Réordonnancement : la carte s'insère avant la première autre carte dont le
+  // centre est à droite du point de lâcher. Les positions sont lues à l'écran,
+  // la carte saisie exclue (elle suit encore le pointeur).
+  let fanEl
+  function reorder(cardId, clientX) {
+    const others = hand.filter((c) => c.id !== cardId)
+    const slots = fanEl ? [...fanEl.querySelectorAll('.hand-card')] : []
+    let index = others.length
+    for (let i = 0, k = 0; i < hand.length; i++) {
+      if (hand[i].id === cardId) continue
+      const r = slots[i]?.getBoundingClientRect()
+      if (r && clientX < r.left + r.width / 2) { index = k; break }
+      k++
+    }
+    const moved = hand.find((c) => c.id === cardId)
+    const next = [...others.slice(0, index), moved, ...others.slice(index)]
+    if (next.every((c, i) => c.id === hand[i].id)) return // aucun changement
+    dispatch('reorder', { cardIds: next.map((c) => c.id) })
   }
   function onCardFlip(e) { dispatch('flip', e.detail) }
   function onCardFront(e) { dispatch('front', e.detail) }
@@ -64,7 +84,7 @@
   {#if hand.length === 0}
     <div class="empty">Votre main est vide. Déposez une carte ici pour la cacher aux autres.</div>
   {:else}
-    <div class="fan">
+    <div class="fan" bind:this={fanEl}>
       {#each hand as card (card.id)}
         <div class="hand-card">
           <Card

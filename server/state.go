@@ -717,6 +717,40 @@ func (e *engine) DrawSabot(t Transfer) (string, TransferResult) {
 	return id, res
 }
 
+// ReorderHand range la main d'un joueur dans l'ordre qu'il a choisi (IDs de
+// gauche à droite). Seules ses propres cartes en main sont touchées : un ID
+// inconnu, étranger à sa main ou en double est ignoré. Les cartes de sa main
+// absentes de la liste (arrivées entre-temps) passent à droite, comme toute
+// nouvelle arrivée. Renvoie true si quelque chose a été rangé.
+func (e *engine) ReorderHand(userID string, ids []string) bool {
+	seen := map[string]bool{}
+	var listed []*Card
+	for _, id := range ids {
+		if seen[id] {
+			continue
+		}
+		seen[id] = true
+		if c := e.findCard(id); c != nil && c.Zone == ZoneHand && c.Owner == userID {
+			listed = append(listed, c)
+		}
+	}
+	if len(listed) == 0 {
+		return false
+	}
+	var rest []*Card
+	for i := range e.cards {
+		c := &e.cards[i]
+		if c.Zone == ZoneHand && c.Owner == userID && !seen[c.ID] {
+			rest = append(rest, c)
+		}
+	}
+	sort.SliceStable(rest, func(i, j int) bool { return rest[i].Z < rest[j].Z })
+	for _, c := range append(listed, rest...) {
+		c.Z = e.nextZ()
+	}
+	return true
+}
+
 // playerName renvoie le nom affiché d'un joueur, ou son identifiant s'il n'est
 // plus à table (le nom n'est connu que des joueurs présents).
 func (e *engine) playerName(userID string) string {
