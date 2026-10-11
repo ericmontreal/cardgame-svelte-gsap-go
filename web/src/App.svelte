@@ -11,6 +11,7 @@
   } from './lib/store.js'
   import { createWsClient } from './lib/ws-client.js'
   import { ensureInlineSprite } from './lib/svg-sprite.js'
+  import { fitScale, CARD_W, CARD_H } from './lib/geometry.js'
 
   import Login from './lib/Login.svelte'
   import InitMenu from './lib/InitMenu.svelte'
@@ -249,6 +250,30 @@
     reconnecting: 'reconnexion…', closed: 'déconnecté', error: 'erreur',
   }[$wsStatus] || $wsStatus
 
+  // ---- Échelle du tapis ----
+  // Largeur : celle de la cellule du tapis (zone de jeu moins la colonne de
+  // gauche). Hauteur : celle de toute la zone de jeu (.play : tapis + main).
+  // Aucune des deux ne dépend de l'échelle elle-même — voir fitScale. Un
+  // ResizeObserver suit la fenêtre, le repli du chat et l'apparition de la
+  // barre d'outils des navigateurs mobiles, là où 'resize' n'en voit qu'un.
+  let playEl
+  let tableCellEl
+  let scale = 1
+  let playObserver = null
+  $: observePlay(playEl, tableCellEl)
+  function observePlay(play, cell) {
+    playObserver?.disconnect()
+    playObserver = null
+    if (!play || !cell) return
+    playObserver = new ResizeObserver(() => { scale = fitScale(cell.clientWidth, play.clientHeight) })
+    playObserver.observe(play)
+    playObserver.observe(cell)
+  }
+  onDestroy(() => playObserver?.disconnect())
+  // Cartes de la main à la taille des cartes du tapis, telles qu'affichées.
+  $: handCardW = Math.round(CARD_W * scale)
+  $: handCardH = Math.round(CARD_H * scale)
+
   // État réactif partagé (tableState + myHand) pour les sous-composants.
   $: st = $tableState
   $: hand = $myHand
@@ -290,14 +315,6 @@
 
   {:else}
     <div class="layout">
-      <header class="topbar">
-        <span class="brand">🃏 Table de cartes</span>
-        <span class="me">Connecté en tant que <b>{session.name}</b></span>
-        <span class="status" data-s={$wsStatus}>● {statusLabel}</span>
-        <button class="newgame" on:click={askNewGame}>Nouvelle partie</button>
-        <button class="logout" on:click={askLeave}>Quitter la partie</button>
-      </header>
-
       {#if leaving}
         <div class="modal-backdrop" on:click={cancelLeave}>
           <div class="modal" on:click|stopPropagation>
@@ -367,7 +384,20 @@
       {/if}
 
       <div class="body">
+        <div class="play" bind:this={playEl}>
+        <!-- Ancienne barre de titre, empilée dans une colonne à gauche du tapis
+             pour rendre sa hauteur au jeu. Elle s'arrête à la main, qui court
+             dessous sur toute la largeur de la zone de jeu. -->
+        <aside class="sidebar">
+          <span class="brand">🃏 Table de cartes</span>
+          <span class="me">Connecté en tant que <b>{session.name}</b></span>
+          <span class="status" data-s={$wsStatus}>● {statusLabel}</span>
+          <button class="newgame" on:click={askNewGame}>Nouvelle partie</button>
+          <button class="logout" on:click={askLeave}>Quitter la partie</button>
+        </aside>
+        <div class="table-cell" bind:this={tableCellEl}>
         <Table
+          {scale}
           table={st.table}
           players={st.players}
           sabotCount={st.sabotCount}
@@ -389,15 +419,19 @@
           on:sabotDraw={sendSabotDraw}
           on:shuffle={sendSabotShuffle}
         />
+        </div>
+
+        <Hand {hand} myUserId={session.id}
+          cardW={handCardW}
+          cardH={handCardH}
+          on:flip={sendFlip}
+          on:front={sendFront}
+          on:transfer={sendTransfer}
+        />
+        </div>
 
         <Chat onSend={sendChat} />
       </div>
-
-      <Hand {hand} myUserId={session.id}
-        on:flip={sendFlip}
-        on:front={sendFront}
-        on:transfer={sendTransfer}
-      />
     </div>
   {/if}
 </main>
@@ -453,27 +487,32 @@
   .stuck button:hover { background: #36b46f; }
 
   /* minmax(0, 1fr) et non 1fr : un 1fr nu vaut minmax(auto, 1fr), et la table
-     (1160×800) imposait alors sa taille à la grille au lieu de s'y adapter. La
-     zone centrale doit pouvoir rétrécir pour que Table.svelte réduise le tapis. */
-  .layout { flex: 1; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; min-height: 0; }
+     (1440×800) imposait alors sa taille à la grille au lieu de s'y adapter. La
+     zone centrale doit pouvoir rétrécir pour que le tapis soit réduit. */
+  .layout { flex: 1; display: grid; grid-template-rows: minmax(0, 1fr); min-height: 0; }
 
-  .topbar {
-    display: flex; align-items: center; gap: 1rem;
-    padding: 8px 14px;
+  /* Colonne de titre : les éléments de l'ancienne barre, empilés. Étroite à
+     dessein — chaque pixel pris ici l'est sur la largeur du tapis, qui est ce
+     qui limite sa taille sur une tablette. */
+  .sidebar {
+    grid-row: 1; grid-column: 1;
+    width: 128px; box-sizing: border-box;
+    display: flex; flex-direction: column; align-items: stretch; gap: .5rem;
+    padding: 12px 10px;
     background: rgba(0,0,0,0.45);
-    border-bottom: 2px solid rgba(255,255,255,0.1);
-    font-size: .9rem;
+    border-right: 2px solid rgba(255,255,255,0.1);
+    font-size: .82rem; line-height: 1.3;
   }
-  .brand { font-weight: 700; }
-  .me { opacity: .85; }
-  .me b { color: #ffd27a; }
-  .status { margin-left: auto; font-size: .8rem; opacity: .85; }
+  .brand { font-weight: 700; font-size: .9rem; }
+  .me { opacity: .85; overflow-wrap: anywhere; }
+  .me b { color: #ffd27a; display: block; }
+  .status { font-size: .78rem; opacity: .85; margin-bottom: .3rem; }
   .status[data-s="open"] { color: #6fe39a; }
   .status[data-s="connecting"], .status[data-s="reconnecting"] { color: #ffd27a; }
   .status[data-s="closed"], .status[data-s="error"], .status[data-s="idle"] { color: #ff9a9a; }
   .newgame, .logout {
     border: 1px solid rgba(255,255,255,0.2); background: transparent; color: #eef;
-    padding: .35rem .7rem; border-radius: 7px; cursor: pointer; font-size: .85rem;
+    padding: .4rem .4rem; border-radius: 7px; cursor: pointer; font-size: .8rem;
   }
   .newgame:hover, .logout:hover { background: rgba(255,255,255,0.1); }
 
@@ -481,6 +520,16 @@
     display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: minmax(0, 1fr);
     min-height: 0;
   }
+  /* Zone de jeu : le tapis au-dessus, la main en dessous. La main ne court plus
+     sous le chat, qui prend toute la hauteur à droite. */
+  .play {
+    display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto;
+    min-width: 0; min-height: 0;
+  }
+  .table-cell { grid-row: 1; grid-column: 2; display: flex; min-width: 0; min-height: 0; }
+  /* La main passe sous la colonne de titre : toute la largeur de la zone de
+     jeu, la colonne s'arrêtant au-dessus d'elle. */
+  .play > :global(.hand) { grid-row: 2; grid-column: 1 / -1; }
 
   .modal-backdrop {
     position: fixed; inset: 0; z-index: 1000;

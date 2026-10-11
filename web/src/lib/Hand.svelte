@@ -6,9 +6,16 @@
   import { createEventDispatcher } from 'svelte'
   import Card from './Card.svelte'
   import { dropAt, TARGETS } from './drag.js'
+  import { HAND_CHROME } from './geometry.js'
 
   export let hand = []          // cartes privées du joueur
   export let myUserId = ''
+  // Taille d'affichage des cartes : celle des cartes du tapis À L'ÉCRAN
+  // (CARD_W/CARD_H × échelle du tapis), fournie par App.svelte. Les deux
+  // tailles différaient : une carte changeait de taille en passant de la main
+  // au tapis.
+  export let cardW = 56
+  export let cardH = 78
 
   const dispatch = createEventDispatcher()
 
@@ -48,6 +55,7 @@
   class:hovered
   data-drop="hand"
   data-owner={myUserId}
+  style="min-height:{cardH + HAND_CHROME}px;"
   on:dragenter={onDragEnter}
   on:dragleave={onDragLeave}
   on:dragover={onDragOver}
@@ -62,8 +70,8 @@
           <Card
             c={card}
             zone="hand"
-            width={56}
-            height={78}
+            width={cardW}
+            height={cardH}
             on:drop={onCardDrop}
             on:flip={onCardFlip}
             on:front={onCardFront}
@@ -75,10 +83,11 @@
 </div>
 
 <style>
-  /* Bande basse resserrée (130px -> 90px, cartes 72x100 -> 56x78) : sur
-     tablette elle prenait la hauteur dont le tapis a besoin pour s'agrandir. */
+  /* Hauteur = carte + HAND_CHROME (geometry.js : 2 x 6px de marge + 2px de
+     filet), posée en ligne : elle suit la taille des cartes, donc l'échelle du
+     tapis. Toute modification des marges ou du filet doit y être reportée,
+     sinon le calcul d'échelle d'App.svelte se trompe de quelques pixels. */
   .hand {
-    min-height: 90px;
     box-sizing: border-box;
     padding: 6px 14px;
     background: linear-gradient(180deg, rgba(0,0,0,0.35), rgba(0,0,0,0.6));

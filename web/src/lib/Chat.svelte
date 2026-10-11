@@ -142,11 +142,12 @@
   <div class="list" bind:this={listEl}>
     {#each $chatLog as msg (msg.id)}
       {#if msg.system}
-        <!-- Annonce de la table (mélange du sabot…) : produite localement à
-             partir d'un message serveur, jamais saisie par un joueur. -->
+        <!-- Annonce de la table (mélange, distribution…) : produite localement
+             à partir d'un message serveur, jamais saisie par un joueur. Sans
+             heure : ces lignes se suivent par rafales, et l'heure répétée sur
+             chacune encombrait le panneau sans rien apprendre. -->
         <div class="msg system">
           <span class="body">{msg.text}</span>
-          <time>{clock(msg.at)}</time>
         </div>
       {:else}
         <div class="msg">
@@ -250,11 +251,9 @@
   .meta time { opacity: .7; font-weight: 400; }
   .body { color: #eef; font-size: .9rem; word-break: break-word; }
   .msg.system {
-    flex-direction: row; align-items: baseline; justify-content: space-between; gap: 6px;
     padding: 2px 6px; border-left: 2px solid rgba(255,210,122,0.6);
   }
   .msg.system .body { color: #ffd27a; font-size: .8rem; font-style: italic; }
-  .msg.system time { font-size: .72rem; opacity: .6; }
   .empty { color: rgba(255,255,255,0.4); font-size: .85rem; align-self: center; margin-top: 1rem; }
   /* padding droit de 14px = celui de la barre supérieure : le bouton Envoyer
      s'aligne ainsi à droite sur « Quitter la partie ». */

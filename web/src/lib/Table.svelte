@@ -2,12 +2,13 @@
   // Zone table (§7) : tapis vert partagé. Contient le sabot, les cartes de
   // table (publiques) et les avatars. Orchestre le hit-test des drops et
   // remonte les actions au serveur via events.
-  import { createEventDispatcher, onMount } from 'svelte'
+  import { createEventDispatcher, onMount, tick } from 'svelte'
   import Card from './Card.svelte'
   import Sabot from './Sabot.svelte'
   import Avatar from './Avatar.svelte'
   import { dropAt, TARGETS } from './drag.js'
   import { liveDrag } from './store.js'
+  import { TABLE_W, TABLE_H, FELT_INSET, CARD_W, CARD_H } from './geometry.js'
 
   export let table = []          // cartes publiques (zone table)
   export let players = []        // joueurs connectés
@@ -22,10 +23,8 @@
   let tableEl
   let tableRect = null
   // Position fixe du sabot sur le tapis (zone de design), centrée sur le
-  // feutre (table 1440x800, carte 110x154 : ((1440-110)/2, (800-154)/2)).
-  // Valeurs écrites en dur : TABLE_W et CARD_W sont déclarées plus bas, et
-  // une const ne peut pas lire une const déclarée après elle.
-  const SABOT_POS = { x: 665, y: 323 }
+  // feutre.
+  const SABOT_POS = { x: (TABLE_W - CARD_W) / 2, y: (TABLE_H - CARD_H) / 2 }
 
   // ---- Mise à l'échelle (tablettes, petits écrans) -------------------------
   // Le tapis est dessiné à taille fixe (TABLE_W × TABLE_H, repère partagé avec
@@ -35,18 +34,15 @@
   // Toutes les coordonnées échangées (serveur, cartes, sélection) restent dans
   // le repère NON réduit. Seules les conversions écran → tapis divisent par
   // `scale` ; l'attribut data-scale l'expose à Card.svelte et à drag.js, qui
-  // n'ont pas accès à cette variable. TABLE_W/TABLE_H sont déclarées plus bas,
-  // avec les bornes de pose.
-  const MIN_SCALE = 0.45 // en deçà, cartes illisibles : on laisse défiler
-  let scrollEl
-  let scale = 1
-  function fitScale() {
-    if (!scrollEl) return
-    const pad = 12
-    const s = Math.min(1, (scrollEl.clientWidth - pad) / TABLE_W, (scrollEl.clientHeight - pad) / TABLE_H)
-    scale = Math.max(MIN_SCALE, Math.round(s * 1000) / 1000)
-    refreshRect()
-  }
+  // n'ont pas accès à cette variable.
+  //
+  // L'échelle est calculée par App.svelte (geometry.js, fitScale) et non plus
+  // ici : la main, sous le tapis, affiche ses cartes à la même taille que
+  // celles du tapis, et sa hauteur dépend donc de l'échelle. Le tapis ne peut
+  // pas mesurer seul la place qui lui reste sans entrer en boucle avec elle.
+  export let scale = 1
+  // Le rect du tapis change avec l'échelle : le relire après le rendu.
+  $: scale, tick().then(refreshRect)
 
   function refreshRect() {
     if (tableEl) tableRect = tableEl.getBoundingClientRect()
@@ -56,18 +52,11 @@
     return { x: (clientX - tableRect.left) / scale, y: (clientY - tableRect.top) / scale }
   }
   onMount(() => {
-    // La zone se redimensionne avec la fenêtre, mais aussi quand le chat se
-    // replie ou que la barre d'outils du navigateur mobile apparaît : un
-    // ResizeObserver couvre tous ces cas, là où 'resize' n'en voit qu'un.
-    const ro = new ResizeObserver(fitScale)
-    ro.observe(scrollEl)
-    fitScale()
     refreshRect()
     window.addEventListener('resize', refreshRect)
     window.addEventListener('scroll', refreshRect, true)
     window.addEventListener('keydown', onGlobalKey)
     return () => {
-      ro.disconnect()
       window.removeEventListener('resize', refreshRect)
       window.removeEventListener('scroll', refreshRect, true)
       window.removeEventListener('keydown', onGlobalKey)
@@ -108,15 +97,10 @@
     selected = next
   }
 
-  // Dimensions d'une carte de table, passées à <Card> et au sabot. DOUBLÉES
-  // côté serveur (cardW/cardH, handlers.go) : les garder synchronisées.
-  // Portées de 92x128 à 110x154 pour les tablettes, où le tapis réduit
-  // rendait les cartes trop petites. Une carte est repérée par son COIN supérieur
+  // CARD_W/CARD_H (geometry.js) : une carte est repérée par son COIN supérieur
   // gauche et occupe [x, x+CARD_W] x [y, y+CARD_H] — cf. l'avertissement sur
   // `.card-anchor` dans les styles. Utilisées par l'aimantage, la détection de
   // pile et les actions groupées.
-  const CARD_W = 110
-  const CARD_H = 154
 
   // ---- Sélection de pile (Ctrl+clic) ----------------------------------------
   // Il n'existe pas de notion de pile côté serveur : une pile est un empilement
@@ -157,20 +141,12 @@
   // sur le feutre, dont le pourtour bois occupe 40px (`.felt` est en inset:40px,
   // cf. les styles plus bas).
   //
-  // Tapis élargi de 1160 à 1440 et bordure réduite de 80 à 40 (tablettes) :
-  // l'écran paysage d'une tablette est plus allongé que l'ancien tapis, qui
-  // laissait de la place perdue sur les côtés. Valeurs DOUBLÉES côté serveur
-  // (tableW/tableH/feltInset, handlers.go).
-  //
   // Ces bornes valent pour un COIN supérieur gauche, pas pour un centre : une
   // carte occupe [x, x+CARD_W] x [y, y+CARD_H]. Elles étaient auparavant
   // écrites `80 + CARD_W/2`, ce qui n'a de sens que pour des centres — la borne
   // haute laissait donc dépasser une demi-carte sur le bois, et la borne basse
   // gardait inutilement une demi-carte de jeu. Voir l'avertissement sur
   // `.card-anchor` dans les styles.
-  const TABLE_W = 1440
-  const TABLE_H = 800
-  const FELT_INSET = 40
   const MIN_X = FELT_INSET
   const MIN_Y = FELT_INSET
   const MAX_X = TABLE_W - FELT_INSET - CARD_W
@@ -509,7 +485,7 @@
   }
 </script>
 
-<div class="table-scroll" bind:this={scrollEl}>
+<div class="table-scroll">
   <!-- L'enveloppe occupe la taille RÉDUITE : un transform ne change pas la
        place qu'un élément prend dans la mise en page, sans elle la table
        réduite laisserait derrière elle un vide de 1440×800 et des barres de
