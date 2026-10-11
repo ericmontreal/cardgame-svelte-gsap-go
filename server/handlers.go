@@ -25,8 +25,8 @@ const (
 // cartes lui-même lorsqu'un joueur abandonne. Les garder synchronisées : un
 // écart ne casse rien, mais décale les cartes ainsi posées.
 const (
-	cardW     = 110.0
-	cardH     = 154.0
+	cardW     = 140.0 // = CARD_W, web/src/lib/geometry.js
+	cardH     = 196.0 // = CARD_H
 	feltInset = 40.0 // pourtour bois, où les avatars sont assis
 	// Bornes admissibles pour le COIN supérieur gauche d'une carte, de sorte
 	// qu'elle reste entière sur le feutre.

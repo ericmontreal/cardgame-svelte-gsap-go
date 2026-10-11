@@ -11,7 +11,7 @@
   } from './lib/store.js'
   import { createWsClient } from './lib/ws-client.js'
   import { ensureInlineSprite } from './lib/svg-sprite.js'
-  import { fitScale, CARD_W, CARD_H } from './lib/geometry.js'
+  import { fitScale, sidebarWidth, CARD_W, CARD_H } from './lib/geometry.js'
 
   import Login from './lib/Login.svelte'
   import InitMenu from './lib/InitMenu.svelte'
@@ -258,24 +258,25 @@
   }[$wsStatus] || $wsStatus
 
   // ---- Échelle du tapis ----
-  // Largeur : celle de la cellule du tapis (zone de jeu moins la colonne de
-  // gauche). Hauteur : celle de toute la zone de jeu (.play : tapis + main).
-  // Aucune des deux ne dépend de l'échelle elle-même — voir fitScale. Un
-  // ResizeObserver suit la fenêtre, le repli du chat et l'apparition de la
-  // barre d'outils des navigateurs mobiles, là où 'resize' n'en voit qu'un.
+  // Mesurée sur toute la zone de jeu (.play : colonne de gauche, tapis, main),
+  // dont la taille ne dépend pas de l'échelle — c'est fitScale qui répartit la
+  // place entre les trois. Un ResizeObserver suit la fenêtre, le repli du chat
+  // et l'apparition de la barre d'outils des navigateurs mobiles, là où
+  // 'resize' n'en voit qu'un.
   let playEl
   let tableCellEl
   let scale = 1
   let playObserver = null
-  $: observePlay(playEl, tableCellEl)
-  function observePlay(play, cell) {
+  $: observePlay(playEl)
+  function observePlay(play) {
     playObserver?.disconnect()
     playObserver = null
-    if (!play || !cell) return
-    playObserver = new ResizeObserver(() => { scale = fitScale(cell.clientWidth, play.clientHeight) })
+    if (!play) return
+    playObserver = new ResizeObserver(() => { scale = fitScale(play.clientWidth, play.clientHeight) })
     playObserver.observe(play)
-    playObserver.observe(cell)
   }
+  // Colonne de gauche : environ deux cartes de large, à l'échelle du tapis.
+  $: sideW = sidebarWidth(scale)
   onDestroy(() => playObserver?.disconnect())
   // Cartes de la main à la taille des cartes du tapis, telles qu'affichées.
   $: handCardW = Math.round(CARD_W * scale)
@@ -397,7 +398,7 @@
         <!-- Ancienne barre de titre, empilée dans une colonne à gauche du tapis
              pour rendre sa hauteur au jeu. Elle s'arrête à la main, qui court
              dessous sur toute la largeur de la zone de jeu. -->
-        <aside class="sidebar">
+        <aside class="sidebar" style="width:{sideW}px;">
           <span class="brand">🃏 Jouons</span>
           <span class="me" title="Connecté en tant que {session.name}">{session.name}</span>
           <span class="status" data-s={$wsStatus}>● {statusLabel}</span>
@@ -504,9 +505,11 @@
   /* Colonne de titre : les éléments de l'ancienne barre, empilés. Étroite à
      dessein — chaque pixel pris ici l'est sur la largeur du tapis, qui est ce
      qui limite sa taille sur une tablette. */
+  /* Largeur posée en ligne : deux cartes à l'échelle du tapis (sidebarWidth),
+     marges et filet compris — d'où le border-box. */
   .sidebar {
     grid-row: 1; grid-column: 1;
-    width: 128px; box-sizing: border-box;
+    box-sizing: border-box;
     display: flex; flex-direction: column; align-items: stretch; gap: .5rem;
     padding: 12px 10px;
     background: rgba(0,0,0,0.45);
