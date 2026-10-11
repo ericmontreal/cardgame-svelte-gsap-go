@@ -13,7 +13,13 @@ import (
 //
 // Le sprite officiel (SVG-cards 2.0.1) expose les groupes :
 //   - couleurs : 1..10, jack, queen, king  pour club/diamond/heart/spade
-//   - jokers    : black_joker, red_joker (et dos : back)
+//   - jokers    : joker_black, joker_red (et dos : back)
+//
+// ATTENTION : les jokers sont émis ci-dessous sous les noms black_joker et
+// red_joker, qui ne sont PAS ceux du sprite. Ce commentaire affirmait le
+// contraire, et les jokers s'affichaient vides. Le client traduit
+// (SPRITE_ALIAS dans web/src/lib/Card.svelte) ; renommer ici est possible,
+// mais demande de redéployer le serveur, donc de vider la partie en cours.
 // Les faceIds attendus côté client sont donc "1_club" ... "king_spade".
 
 var suitOrder = []string{"club", "diamond", "heart", "spade"}

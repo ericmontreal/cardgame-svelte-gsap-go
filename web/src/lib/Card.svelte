@@ -29,9 +29,16 @@
   let rootEl        // élément racine pour les animations GSAP
 
   // ---- Rendu du symbole via <use href="#sym-..."> ----
+  // Le serveur nomme les jokers « black_joker » / « red_joker » (deck.go),
+  // le sprite SVG-cards « joker_black » / « joker_red ». Sans correspondance,
+  // <use> visait un symbole inexistant et les jokers s'affichaient vides.
+  // Corrigé ici plutôt que côté serveur : renommer obligerait à le redémarrer,
+  // ce qui efface la partie en cours, et cette table reste inoffensive si le
+  // serveur adopte un jour les noms du sprite.
+  const SPRITE_ALIAS = { black_joker: 'joker_black', red_joker: 'joker_red' }
   function setBoth() {
     if (!useEl) return
-    const target = '#sym-' + (c.faceUp ? currentId : backId)
+    const target = '#sym-' + (c.faceUp ? (SPRITE_ALIAS[currentId] ?? currentId) : backId)
     useEl.setAttribute('href', target)
     useEl.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', target)
   }
