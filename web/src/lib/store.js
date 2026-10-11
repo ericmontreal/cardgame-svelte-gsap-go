@@ -194,8 +194,22 @@ export function applyState(payload) {
 }
 
 // Applique un message "hand" (main privée du joueur courant).
+//
+// Ordre d'affichage : de gauche à droite par ordre d'arrivée. Les cartes déjà
+// en main gardent leur place, les nouvelles s'ajoutent à droite, dans l'ordre
+// où le serveur les envoie. Le serveur trie lui aussi par arrivée (Z) ; garder
+// l'ordre ici évite en plus qu'une carte retournée ou reprise ne fasse
+// bouger ses voisines.
 export function applyHand(payload) {
-  myHand.set(Array.isArray(payload.cards) ? payload.cards : [])
+  const cards = Array.isArray(payload?.cards) ? payload.cards : []
+  myHand.update((prev) => mergeHandOrder(prev, cards))
+}
+
+export function mergeHandOrder(prev, cards) {
+  const place = new Map(prev.map((c, i) => [c.id, i]))
+  const kept = cards.filter((c) => place.has(c.id)).sort((a, b) => place.get(a.id) - place.get(b.id))
+  const added = cards.filter((c) => !place.has(c.id))
+  return [...kept, ...added]
 }
 
 // Ajoute un message de chat au journal.

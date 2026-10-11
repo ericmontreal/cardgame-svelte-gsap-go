@@ -653,11 +653,16 @@ func (e *engine) applyTransfer(c *Card, fromZone Zone, t Transfer, dealt bool) T
 		if dst, ok := e.players[t.OwnerID]; ok && dst.Abandoned {
 			return TransferResult{}
 		}
+		// En main, Z sert d'ordre d'arrivée : snapshotHand trie par Z, la
+		// dernière carte reçue s'affiche donc à droite. Une carte reposée dans
+		// la main qui la tenait déjà garde sa place.
+		if !(fromZone == ZoneHand && prevHandOwner == t.OwnerID) {
+			c.Z = e.nextZ()
+		}
 		c.Zone = ZoneHand
 		c.Owner = t.OwnerID
 		c.X, c.Y = 0, 0
 		c.Rotate = 0
-		c.Z = 0
 		if dealt {
 			c.FaceUp = true // distribution depuis le sabot : visible par son propriétaire
 		}
@@ -766,6 +771,9 @@ func (e *engine) snapshotPublic() publicState {
 }
 
 // snapshotHand construit la main privée d'un joueur.
+// Les cartes sont rangées par ordre d'arrivée (Z, cf. applyTransfer), de
+// gauche à droite. Elles suivaient auparavant l'ordre interne du sabot : une
+// carte reçue pouvait s'insérer au milieu de la main.
 func (e *engine) snapshotHand(userID string) handPayload {
 	var h handPayload
 	for _, c := range e.cards {
@@ -773,5 +781,6 @@ func (e *engine) snapshotHand(userID string) handPayload {
 			h.Cards = append(h.Cards, c)
 		}
 	}
+	sort.SliceStable(h.Cards, func(i, j int) bool { return h.Cards[i].Z < h.Cards[j].Z })
 	return h
 }

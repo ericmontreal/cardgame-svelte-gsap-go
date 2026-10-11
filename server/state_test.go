@@ -549,6 +549,27 @@ func TestTransferManyCountsReceivedCardsByOrigin(t *testing.T) {
 	}
 }
 
+func TestHandListsCardsInArrivalOrder(t *testing.T) {
+	// Le sabot rend c-5, c-4, c-3... (sommet = fin de e.sabot). On tire c-5
+	// et c-4 en main, on pose c-3 sur le tapis puis on la ramasse : la main
+	// doit lister c-5, c-4, c-3 — l'ordre d'arrivée, pas celui du paquet.
+	e := newEngineWithCards(t, 6)
+	e.ensurePlayer("u-alice", "alice", tableW, tableH)
+	a, _ := e.DrawSabot(Transfer{Target: TargetHand, OwnerID: "u-alice"})
+	b, _ := e.DrawSabot(Transfer{Target: TargetHand, OwnerID: "u-alice"})
+	c, _ := e.DrawSabot(Transfer{Target: TargetTable, X: 300, Y: 300})
+	e.TransferCard(Transfer{CardID: c, Target: TargetHand, OwnerID: "u-alice"})
+	got := e.snapshotHand("u-alice").Cards
+	if len(got) != 3 || got[0].ID != a || got[1].ID != b || got[2].ID != c {
+		t.Fatalf("ordre d'arrivée attendu %s %s %s, obtenu %v", a, b, c, got)
+	}
+	// Reposer une carte dans sa propre main ne la déplace pas.
+	e.TransferCard(Transfer{CardID: a, Target: TargetAvatar, OwnerID: "u-alice"})
+	if got := e.snapshotHand("u-alice").Cards; got[0].ID != a {
+		t.Fatalf("une carte reposée dans sa main doit garder sa place, obtenu %v", got)
+	}
+}
+
 func TestShuffleSabotKeepsSameCardsAndLeavesTableAndHandsAlone(t *testing.T) {
 	e := newEngineWithCards(t, 52)
 	e.ensurePlayer("u-alice", "alice", tableW, tableH)
