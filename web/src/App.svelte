@@ -527,7 +527,13 @@
     display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto;
     min-width: 0; min-height: 0;
   }
-  .table-cell { grid-row: 1; grid-column: 2; display: flex; min-width: 0; min-height: 0; }
+  .table-cell { grid-row: 1; grid-column: 2; display: flex; min-width: 0; min-height: 0; position: relative; }
+  /* La zone d'où part une carte saisie passe au-dessus des autres le temps du
+     geste : la carte survole ainsi la main (depuis le tapis), le tapis (depuis
+     la main), et le chat. Les deux zones sont des voisines dans la grille ; sans
+     z-index, la plus tardive dans le document recouvrirait l'autre. */
+  .play > :global(.table-cell:has(.card.dragging)),
+  .play > :global(.hand:has(.card.dragging)) { position: relative; z-index: 20; }
   /* La main passe sous la colonne de titre : toute la largeur de la zone de
      jeu, la colonne s'arrêtant au-dessus d'elle. */
   .play > :global(.hand) { grid-row: 2; grid-column: 1 / -1; }

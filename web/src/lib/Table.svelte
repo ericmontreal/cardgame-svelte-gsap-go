@@ -593,6 +593,12 @@
     place-items: center;
     min-height: 0;
   }
+  /* Pendant qu'une carte est saisie, la zone cesse de rogner ce qui dépasse :
+     sans cela, une carte glissée vers la main disparaissait au bord du tapis
+     au lieu de survoler la main. Rétabli au lâcher. (App.svelte fait passer
+     la zone au-dessus de la main le temps du geste.) Sélecteur global : la
+     classe .dragging est posée par Card.svelte, hors de la portée de ce style. */
+  :global(.table-scroll:has(.card.dragging)) { overflow: visible; }
   .table-fit {
     position: relative;
     flex: none;

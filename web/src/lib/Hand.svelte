@@ -97,6 +97,9 @@
     overflow-x: auto;
     transition: background .15s ease;
   }
+  /* Même chose dans l'autre sens : une carte tirée de la main vers le tapis
+     ne doit pas être rognée par le défilement horizontal de la main. */
+  :global(.hand:has(.card.dragging)) { overflow: visible; }
   .hand.hovered { background: linear-gradient(180deg, rgba(47,158,99,0.25), rgba(0,0,0,0.6)); }
   .empty {
     color: rgba(255,255,255,0.55);
