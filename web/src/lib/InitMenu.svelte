@@ -75,20 +75,23 @@
     ranksChecked = { ...ranksChecked }
     e.currentTarget.checked = true
   }
-  // Estimation du nombre de cartes (aperçu en direct).
-  $: estCards =
-    (validSuits && validRanks)
-      ? deckCount * selectedSuits.length * selectedRanks.length + jokerCount()
-      : 0
-
-  function jokerCount() {
-    if (jokers === 'both') return deckCount * 2
-    if (jokers === 'black' || jokers === 'red') return deckCount
-    return 0
-  }
+  // Estimation du nombre de cartes (aperçu en direct), même règle que le
+  // serveur (deck.go, Normalize) : jeux × (couleurs × valeurs + jokers).
+  //
+  // La composition est valable dès qu'elle produit une carte. Exiger une
+  // couleur et une valeur refusait un sabot de jokers seuls, pourtant
+  // légitime ; le serveur, lui, accepte désormais une liste de valeurs vide.
+  //
+  // `jokers` et `deckCount` sont cités ici même, et non seulement dans une
+  // fonction appelée : Svelte ne recalcule une déclaration réactive que pour
+  // les variables qu'elle nomme. Avec l'ancien jokerCount(), changer de
+  // jokers ne mettait pas l'aperçu à jour.
+  $: jokersPerDeck = jokers === 'both' ? 2 : (jokers === 'black' || jokers === 'red') ? 1 : 0
+  $: estCards = deckCount * (selectedSuits.length * selectedRanks.length + jokersPerDeck)
+  $: canStart = estCards > 0
 
   function start() {
-    if (!validSuits || !validRanks) return
+    if (!canStart) return
     saveDeckConfig({ suits: { ...suits }, ranks: { ...ranksChecked }, deckCount, jokers, shuffle, snapEnabled })
     dispatch('start', {
       config: {
@@ -210,14 +213,13 @@
     <div class="actions">
       <div class="summary">
         <span>Aperçu : <strong>{estCards}</strong> carte{estCards > 1 ? 's' : ''}</span>
-        {#if !validSuits}<span class="warn">— sélectionnez au moins une couleur</span>
-        {:else if !validRanks}<span class="warn">— sélectionnez au moins une valeur</span>{/if}
+        {#if !canStart}<span class="warn">— {!validRanks ? 'sélectionnez au moins une valeur' : 'sélectionnez au moins une couleur'}, ou des jokers</span>{/if}
       </div>
       {#if gameInProgress}
         <button class="back" type="button" on:click={cancel} title="Retrouver la partie en cours, sans rien changer (Échap)">Revenir à la partie</button>
       {/if}
       <button class="reset" type="button" on:click={reset}>Réinitialiser</button>
-      <button class="start" on:click={start} disabled={!validSuits || !validRanks}>
+      <button class="start" on:click={start} disabled={!canStart}>
         Ouvrir la table
       </button>
     </div>

@@ -90,6 +90,13 @@ func DefaultDeckConfig() DeckConfig {
 // Normalize valide et normalise une config venue du client. En cas de champ
 // invalide, on retombe sur une valeur saine. Renvoie une erreur uniquement si
 // la config ne produit aucune carte.
+//
+// Couleurs et rangs : une liste ABSENTE (nil, champ omis) retombe sur le jeu
+// complet ; une liste EXPLICITEMENT VIDE est respectée. Le menu envoie [] quand
+// rien n'est coché, et un sabot de jokers seuls (aucune valeur, jokers « Tous »)
+// est une composition légitime : la remplacer par les 13 valeurs donnait 54
+// cartes au lieu de 2. Une liste non vide mais entièrement invalide reste, elle,
+// remplacée par le défaut (même tolérance qu'avant).
 func (c DeckConfig) Normalize() (DeckConfig, error) {
 	if c.DeckCount < 1 {
 		c.DeckCount = 1
@@ -98,7 +105,7 @@ func (c DeckConfig) Normalize() (DeckConfig, error) {
 		c.DeckCount = 8 // plafond anti-abus (cohérence technique)
 	}
 	// Couleurs : garder uniquement celles reconnues ; défaut = les 4.
-	if len(c.Suits) == 0 {
+	if c.Suits == nil {
 		c.Suits = suitOrder
 	}
 	clean := make([]string, 0, len(c.Suits))
@@ -107,7 +114,7 @@ func (c DeckConfig) Normalize() (DeckConfig, error) {
 			clean = append(clean, s)
 		}
 	}
-	if len(clean) == 0 {
+	if len(clean) == 0 && len(c.Suits) > 0 {
 		clean = suitOrder
 	}
 	c.Suits = clean
@@ -123,7 +130,7 @@ func (c DeckConfig) Normalize() (DeckConfig, error) {
 		ranks = append(ranks, r)
 	}
 	sort.Ints(ranks)
-	if len(ranks) == 0 {
+	if len(ranks) == 0 && (c.Ranks == nil || len(c.Ranks) > 0) {
 		ranks = append([]int(nil), allRanks...)
 	}
 	c.Ranks = ranks
@@ -133,11 +140,23 @@ func (c DeckConfig) Normalize() (DeckConfig, error) {
 	default:
 		c.Jokers = "none"
 	}
-	// Vérification finale : la config doit produire au moins une carte.
-	if c.DeckCount*len(c.Suits)*len(c.Ranks) == 0 {
+	// Vérification finale : la config doit produire au moins une carte,
+	// jokers compris.
+	if c.DeckCount*(len(c.Suits)*len(c.Ranks)+jokersPerDeck(c.Jokers)) == 0 {
 		return c, fmt.Errorf("deck config ne produit aucune carte")
 	}
 	return c, nil
+}
+
+// jokersPerDeck renvoie le nombre de jokers qu'ajoute chaque jeu.
+func jokersPerDeck(j string) int {
+	switch j {
+	case "both":
+		return 2
+	case "black", "red":
+		return 1
+	}
+	return 0
 }
 
 func isSuit(s string) bool {

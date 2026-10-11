@@ -98,6 +98,39 @@ func TestBuildDeckMultipleDecks(t *testing.T) {
 	}
 }
 
+func TestBuildDeckJokersOnly(t *testing.T) {
+	// Aucune valeur cochée, jokers « Tous » : le menu envoie ranks: [] (liste
+	// explicitement vide). Le sabot doit contenir les deux jokers et rien
+	// d'autre — et non retomber sur les 13 valeurs.
+	cards, err := BuildDeck(DeckConfig{DeckCount: 1, Suits: suitOrder, Ranks: []int{}, Jokers: "both"})
+	if err != nil {
+		t.Fatalf("un sabot de jokers seuls est valide: %v", err)
+	}
+	if len(cards) != 2 || cards[0].FaceID != "black_joker" || cards[1].FaceID != "red_joker" {
+		t.Fatalf("attendu les deux jokers seuls, obtenu %v", cards)
+	}
+	// Deux jeux : deux fois les jokers.
+	cards, _ = BuildDeck(DeckConfig{DeckCount: 2, Suits: []string{}, Ranks: []int{}, Jokers: "red"})
+	if len(cards) != 2 {
+		t.Fatalf("2 jeux, joker rouge seul : 2 cartes attendues, obtenu %d", len(cards))
+	}
+}
+
+func TestBuildDeckRejectsAnEmptyComposition(t *testing.T) {
+	// Aucune valeur et aucun joker : zéro carte, la config est refusée.
+	if _, err := BuildDeck(DeckConfig{DeckCount: 1, Suits: suitOrder, Ranks: []int{}, Jokers: "none"}); err == nil {
+		t.Fatal("une composition sans aucune carte doit être refusée")
+	}
+}
+
+func TestNormalizeAbsentListsStillMeanFullDeck(t *testing.T) {
+	// Champs omis (nil) : le jeu complet, comme avant.
+	cards, err := BuildDeck(DeckConfig{DeckCount: 1, Jokers: "none"})
+	if err != nil || len(cards) != 52 {
+		t.Fatalf("config sans couleurs ni valeurs : 52 cartes attendues, obtenu %d (%v)", len(cards), err)
+	}
+}
+
 func TestNormalizeIsPermissiveButSane(t *testing.T) {
 	// Normalize est volontairement permissive : une config dégénérée retombe
 	// sur des valeurs saines (défauts) plutôt que d'échouer. On vérifie ici que
