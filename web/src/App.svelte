@@ -389,9 +389,10 @@
              pour rendre sa hauteur au jeu. Elle s'arrête à la main, qui court
              dessous sur toute la largeur de la zone de jeu. -->
         <aside class="sidebar">
-          <span class="brand">🃏 Table de cartes</span>
-          <span class="me">Connecté en tant que <b>{session.name}</b></span>
+          <span class="brand">🃏 Jouons</span>
+          <span class="me" title="Connecté en tant que {session.name}">{session.name}</span>
           <span class="status" data-s={$wsStatus}>● {statusLabel}</span>
+          <!-- Boutons repoussés en bas de la colonne (margin-top: auto). -->
           <button class="newgame" on:click={askNewGame}>Nouvelle partie</button>
           <button class="logout" on:click={askLeave}>Quitter la partie</button>
         </aside>
@@ -503,10 +504,10 @@
     border-right: 2px solid rgba(255,255,255,0.1);
     font-size: .82rem; line-height: 1.3;
   }
-  .brand { font-weight: 700; font-size: .9rem; }
-  .me { opacity: .85; overflow-wrap: anywhere; }
-  .me b { color: #ffd27a; display: block; }
-  .status { font-size: .78rem; opacity: .85; margin-bottom: .3rem; }
+  .brand { font-weight: 700; font-size: 1rem; }
+  .me { color: #ffd27a; font-weight: 700; overflow-wrap: anywhere; }
+  .status { font-size: .78rem; opacity: .85; }
+  .newgame { margin-top: auto; }
   .status[data-s="open"] { color: #6fe39a; }
   .status[data-s="connecting"], .status[data-s="reconnecting"] { color: #ffd27a; }
   .status[data-s="closed"], .status[data-s="error"], .status[data-s="idle"] { color: #ff9a9a; }

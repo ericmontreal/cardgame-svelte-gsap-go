@@ -2,6 +2,7 @@
   // Avatar 64×64 (§8) : représente un joueur à table. Cible de drop : déposer
   // une carte sur un avatar la transfère dans la main privée du joueur (§6).
   import { createEventDispatcher } from 'svelte'
+  import { TABLE_W } from './geometry.js'
 
   export let player = { userId: '', name: '', ax: 0, ay: 0, handCount: 0 }
   export let isMe = false
@@ -25,6 +26,14 @@
     .slice(0, 2)
     .toUpperCase()
 
+  // Côté de l'étiquette du nom. Centrée sous l'avatar en temps normal ; mais
+  // les sièges latéraux sont à 44px du bord de la table, et un nom de 24px en
+  // déborderait d'autant plus qu'il est long — ce débordement ferait défiler le
+  // tapis. Près d'un bord, l'étiquette part donc du bord de l'avatar vers
+  // l'intérieur du tapis.
+  const EDGE = 140
+  $: side = player.ax < EDGE ? 'left' : player.ax > TABLE_W - EDGE ? 'right' : ''
+
   // Feedback visuel au survol d'un drag.
   let hovered = false
   function onDragEnter(e) { e.preventDefault(); hovered = true }
@@ -42,6 +51,8 @@
   class:is-me={isMe}
   class:hovered
   class:abandoned={player.abandoned}
+  class:edge-left={side === 'left'}
+  class:edge-right={side === 'right'}
   {...(player.abandoned ? {} : { 'data-drop': 'avatar' })}
   data-owner={player.userId}
   style="--size:{size}px; --hue:{hue}; left:{player.ax}px; top:{player.ay}px;"
@@ -74,6 +85,10 @@
     cursor: default;
     user-select: none;
   }
+  /* Sièges près d'un bord : l'étiquette déborde vers le tapis, pas hors de la
+     table (cf. `side` dans le script). */
+  .avatar.edge-left { align-items: flex-start; }
+  .avatar.edge-right { align-items: flex-end; }
   .medal {
     position: relative;
     width: var(--size);
@@ -129,18 +144,18 @@
      même plus — et le serveur refuse le transfert de son côté. */
   .avatar.abandoned.hovered .medal { transform: none; box-shadow: none; }
   /* Tailles en pixels du TAPIS, réduit ensuite avec lui (Table.svelte) : sur
-     tablette l'échelle tourne autour de 0,7, et les 11px d'origine tombaient
-     sous les 8px à l'écran. 18px y donnent environ 12px lisibles. */
+     tablette l'échelle tourne autour de 0,6, et les 11px d'origine tombaient
+     sous les 7px à l'écran. 24px y donnent environ 15px. */
   .name {
     background: rgba(0,0,0,0.6);
     color: #fff;
-    font-size: 18px;
+    font-size: 24px;
     font-weight: 600;
-    padding: 2px 10px;
+    padding: 2px 12px;
     border-radius: 999px;
     font-family: system-ui, sans-serif;
     white-space: nowrap;
-    max-width: 190px;
+    max-width: 260px;
     overflow: hidden;
     text-overflow: ellipsis;
   }
