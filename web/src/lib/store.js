@@ -248,7 +248,7 @@ export function applySabotShuffled(msg) {
   const count = Number(msg?.payload?.count) || 0
   const at = Date.now()
   sabotShuffle.set({ by, count, at })
-  pushTableNote(`${by} a mélangé le sabot (${cardsLabel(count)})`, at)
+  pushTableNote(`${by}: mélange le sabot (${cardsLabel(count)})`, at) // même format compact que les distributions
 }
 
 // Applique un message "cardsReceived" : des cartes sont entrées dans une main.
