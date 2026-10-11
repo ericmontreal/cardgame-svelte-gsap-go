@@ -22,9 +22,10 @@
   let tableEl
   let tableRect = null
   // Position fixe du sabot sur le tapis (zone de design), centrée sur le
-  // feutre (table 1160x800, carte de sabot 92x128 par défaut). Le joueur peut
-  // le déplacer en le glissant, mais son emplacement par défaut est stable.
-  const SABOT_POS = { x: 534, y: 336 }
+  // feutre (table 1440x800, carte 110x154 : ((1440-110)/2, (800-154)/2)).
+  // Valeurs écrites en dur : TABLE_W et CARD_W sont déclarées plus bas, et
+  // une const ne peut pas lire une const déclarée après elle.
+  const SABOT_POS = { x: 665, y: 323 }
 
   // ---- Mise à l'échelle (tablettes, petits écrans) -------------------------
   // Le tapis est dessiné à taille fixe (TABLE_W × TABLE_H, repère partagé avec
@@ -107,13 +108,15 @@
     selected = next
   }
 
-  // Dimensions par défaut d'une carte de table (Table.svelte ne passe pas de
-  // width/height à <Card>). Une carte est repérée par son COIN supérieur
+  // Dimensions d'une carte de table, passées à <Card> et au sabot. DOUBLÉES
+  // côté serveur (cardW/cardH, handlers.go) : les garder synchronisées.
+  // Portées de 92x128 à 110x154 pour les tablettes, où le tapis réduit
+  // rendait les cartes trop petites. Une carte est repérée par son COIN supérieur
   // gauche et occupe [x, x+CARD_W] x [y, y+CARD_H] — cf. l'avertissement sur
   // `.card-anchor` dans les styles. Utilisées par l'aimantage, la détection de
   // pile et les actions groupées.
-  const CARD_W = 92
-  const CARD_H = 128
+  const CARD_W = 110
+  const CARD_H = 154
 
   // ---- Sélection de pile (Ctrl+clic) ----------------------------------------
   // Il n'existe pas de notion de pile côté serveur : une pile est un empilement
@@ -151,8 +154,13 @@
 
   // ---- Actions groupées : empiler / étaler ------------------------------------
   // Marges de placement : une carte posée par ces actions doit rester entière
-  // sur le feutre, dont le pourtour bois occupe 80px (`.felt` est en inset:80px,
+  // sur le feutre, dont le pourtour bois occupe 40px (`.felt` est en inset:40px,
   // cf. les styles plus bas).
+  //
+  // Tapis élargi de 1160 à 1440 et bordure réduite de 80 à 40 (tablettes) :
+  // l'écran paysage d'une tablette est plus allongé que l'ancien tapis, qui
+  // laissait de la place perdue sur les côtés. Valeurs DOUBLÉES côté serveur
+  // (tableW/tableH/feltInset, handlers.go).
   //
   // Ces bornes valent pour un COIN supérieur gauche, pas pour un centre : une
   // carte occupe [x, x+CARD_W] x [y, y+CARD_H]. Elles étaient auparavant
@@ -160,9 +168,9 @@
   // haute laissait donc dépasser une demi-carte sur le bois, et la borne basse
   // gardait inutilement une demi-carte de jeu. Voir l'avertissement sur
   // `.card-anchor` dans les styles.
-  const TABLE_W = 1160
+  const TABLE_W = 1440
   const TABLE_H = 800
-  const FELT_INSET = 80
+  const FELT_INSET = 40
   const MIN_X = FELT_INSET
   const MIN_Y = FELT_INSET
   const MAX_X = TABLE_W - FELT_INSET - CARD_W
@@ -504,7 +512,7 @@
 <div class="table-scroll" bind:this={scrollEl}>
   <!-- L'enveloppe occupe la taille RÉDUITE : un transform ne change pas la
        place qu'un élément prend dans la mise en page, sans elle la table
-       réduite laisserait derrière elle un vide de 1160×800 et des barres de
+       réduite laisserait derrière elle un vide de 1440×800 et des barres de
        défilement. -->
   <div class="table-fit" style="width:{TABLE_W * scale}px; height:{TABLE_H * scale}px;">
   <!-- svelte-ignore a11y-no-static-element-interactions -->
@@ -534,6 +542,8 @@
       count={sabotCount}
       x={SABOT_POS.x}
       y={SABOT_POS.y}
+      cardW={CARD_W}
+      cardH={CARD_H}
       shuffleAt={sabotShuffleAt}
       {scale}
       on:draw={onSabotDraw}
@@ -551,6 +561,8 @@
         <Card
           c={card}
           zone="table"
+          width={CARD_W}
+          height={CARD_H}
           selected={selected.has(card.id)}
           on:drag={onCardDrag}
           on:drop={onCardDrop}
@@ -612,8 +624,8 @@
   .table {
     position: absolute;
     left: 0; top: 0;
-    width: 1160px;
-    height: 800px;
+    width: 1440px; /* = TABLE_W */
+    height: 800px; /* = TABLE_H */
     transform-origin: 0 0;
     /* pourtour "bois" : les avatars (assis autour, sur des chaises) reposent
        sur cette zone, le feutre vert n'occupant que le centre de la table.
@@ -625,7 +637,7 @@
   }
   .felt {
     position: absolute;
-    inset: 80px;
+    inset: 40px; /* = FELT_INSET */
     border-radius: 18px;
     background: radial-gradient(circle at 50% 45%, #1f7a52 0%, #135a3c 55%, #0a3a26 100%);
     box-shadow: inset 0 0 120px rgba(0,0,0,0.5), 0 4px 14px rgba(0,0,0,0.5);

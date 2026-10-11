@@ -152,8 +152,15 @@ func (e *engine) layoutAvatar(p *Player, index int, w, h float64) {
 	// hauteur totale de la table (w,h) : un siège dont le centre + la moitié
 	// de sa hauteur dépasserait h sortirait complètement de la zone
 	// défilable (perdu, pas seulement hors champ).
+	// Depuis que la bordure bois est passée de 80 à 40px, un avatar de 64px ne
+	// tient plus entièrement dessus : il mord d'autant sur le feutre. Les
+	// sièges sont posés pour que les avatars latéraux restent à 44px du bord,
+	// et ceux du haut et du bas à 60px (leur étiquette de nom, sous l'avatar,
+	// doit encore tenir dans la table pour le siège sud).
+	//   sièges latéraux : cx ± rx·cos(30°) = 44 du bord  ->  rx = (w/2-44)/0,866
+	//   siège sud/nord  : cy ± ry = 60 du bord           ->  ry = h/2-60
 	cx, cy := w/2, h/2
-	rx, ry := w*0.515, h*0.431
+	rx, ry := (w/2-44)/0.866, h/2-60
 	// Angle décalé pour que le siège 0 soit en bas (sud), face à la table.
 	a := float64(index%seats)*(2*math.Pi/seats) + math.Pi/2
 	p.AX = cx + rx*math.Cos(a)

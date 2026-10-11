@@ -256,14 +256,19 @@
   .msg.system .body { color: #ffd27a; font-size: .8rem; font-style: italic; }
   .msg.system time { font-size: .72rem; opacity: .6; }
   .empty { color: rgba(255,255,255,0.4); font-size: .85rem; align-self: center; margin-top: 1rem; }
-  .composer { display: flex; gap: 6px; padding: 8px; border-top: 1px solid rgba(255,255,255,0.1); }
+  /* padding droit de 14px = celui de la barre supérieure : le bouton Envoyer
+     s'aligne ainsi à droite sur « Quitter la partie ». */
+  .composer { display: flex; gap: 6px; padding: 8px 14px 8px 8px; border-top: 1px solid rgba(255,255,255,0.1); }
+  /* min-width: 0 — sans lui, un <input> garde sa largeur intrinsèque (une
+     vingtaine de caractères) et pousse le bouton Envoyer hors du panneau de
+     260px : il apparaissait coupé à droite de l'écran. */
   .composer input {
-    flex: 1; padding: .5rem .6rem; border-radius: 7px;
+    flex: 1; min-width: 0; padding: .5rem .6rem; border-radius: 7px;
     border: 1px solid rgba(255,255,255,0.15); background: rgba(0,0,0,0.3); color: #eef;
   }
   .composer input:focus { outline: 2px solid #4caa7a; border-color: transparent; }
   .composer button {
-    border: 0; border-radius: 7px; padding: .5rem .8rem; cursor: pointer;
+    flex: none; border: 0; border-radius: 7px; padding: .5rem .8rem; cursor: pointer;
     background: #2f9e63; color: #fff; font-weight: 600;
   }
   .composer button:disabled { opacity: .5; cursor: not-allowed; }

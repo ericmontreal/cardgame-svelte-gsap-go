@@ -10,8 +10,12 @@ import (
 // Dimensions de design de la zone table (px). Sert uniquement à positionner les
 // avatars autour de la table côté serveur. Le client les utilise comme taille
 // logique du tapis.
+//
+// Tapis élargi de 1160 à 1440 pour les tablettes (écran paysage plus allongé
+// que l'ancien format) : à garder identique à TABLE_W/TABLE_H dans
+// web/src/lib/Table.svelte.
 const (
-	tableW = 1160.0
+	tableW = 1440.0
 	tableH = 800.0
 )
 
@@ -21,9 +25,9 @@ const (
 // cartes lui-même lorsqu'un joueur abandonne. Les garder synchronisées : un
 // écart ne casse rien, mais décale les cartes ainsi posées.
 const (
-	cardW     = 92.0
-	cardH     = 128.0
-	feltInset = 80.0 // pourtour bois, où les avatars sont assis
+	cardW     = 110.0
+	cardH     = 154.0
+	feltInset = 40.0 // pourtour bois, où les avatars sont assis
 	// Bornes admissibles pour le COIN supérieur gauche d'une carte, de sorte
 	// qu'elle reste entière sur le feutre.
 	minCardX = feltInset

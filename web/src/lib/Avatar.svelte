@@ -96,11 +96,11 @@
     right: -6px;
     background: #2f9e63;
     color: #fff;
-    font-size: 11px;
+    font-size: 15px;
     font-weight: 700;
-    min-width: 20px;
-    height: 20px;
-    padding: 0 5px;
+    min-width: 26px;
+    height: 26px;
+    padding: 0 6px;
     border-radius: 999px;
     display: grid;
     place-items: center;
@@ -128,15 +128,19 @@
      L'attribut data-drop lui est retiré plus haut, donc dropAt() ne le voit
      même plus — et le serveur refuse le transfert de son côté. */
   .avatar.abandoned.hovered .medal { transform: none; box-shadow: none; }
+  /* Tailles en pixels du TAPIS, réduit ensuite avec lui (Table.svelte) : sur
+     tablette l'échelle tourne autour de 0,7, et les 11px d'origine tombaient
+     sous les 8px à l'écran. 18px y donnent environ 12px lisibles. */
   .name {
-    background: rgba(0,0,0,0.55);
+    background: rgba(0,0,0,0.6);
     color: #fff;
-    font-size: 11px;
-    padding: 1px 8px;
+    font-size: 18px;
+    font-weight: 600;
+    padding: 2px 10px;
     border-radius: 999px;
     font-family: system-ui, sans-serif;
     white-space: nowrap;
-    max-width: 120px;
+    max-width: 190px;
     overflow: hidden;
     text-overflow: ellipsis;
   }

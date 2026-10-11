@@ -62,8 +62,8 @@
           <Card
             c={card}
             zone="hand"
-            width={72}
-            height={100}
+            width={56}
+            height={78}
             on:drop={onCardDrop}
             on:flip={onCardFlip}
             on:front={onCardFront}
@@ -75,9 +75,12 @@
 </div>
 
 <style>
+  /* Bande basse resserrée (130px -> 90px, cartes 72x100 -> 56x78) : sur
+     tablette elle prenait la hauteur dont le tapis a besoin pour s'agrandir. */
   .hand {
-    min-height: 130px;
-    padding: 10px 14px;
+    min-height: 90px;
+    box-sizing: border-box;
+    padding: 6px 14px;
     background: linear-gradient(180deg, rgba(0,0,0,0.35), rgba(0,0,0,0.6));
     border-top: 2px solid rgba(255,255,255,0.1);
     display: flex;
