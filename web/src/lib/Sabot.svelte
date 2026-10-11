@@ -21,6 +21,11 @@
 
   const dispatch = createEventDispatcher()
 
+  // Le creux ne déborde de la carte que de 2 pixels À L'ÉCRAN : la marge est
+  // donc divisée par l'échelle du tapis, qui la réduit ensuite d'autant.
+  const WELL_SCREEN_PX = 2
+  $: wellPad = WELL_SCREEN_PX / (scale || 1)
+
   // ---- Mélange ----------------------------------------------------------------
   // Le clic n'anime rien par lui-même : il demande le mélange au serveur, et
   // c'est l'annonce 'sabotShuffled' en retour qui fait battre les cartes. Le
@@ -180,7 +185,7 @@
 >
   <!-- Emplacement du sabot, creusé dans le feutre : il marque sa place même
        quand le sabot est vide. -->
-  <div class="well" aria-hidden="true"></div>
+  <div class="well" aria-hidden="true" style="--pad:{wellPad}px;"></div>
   {#if count > 0}
     <!-- Empilement visuel : quelques dos décalés pour l'effet "pile" -->
     {#each [0, 1, 2, 3] as i}
@@ -251,8 +256,9 @@
      logement taillé dans la table, avec un léger reflet sur le bord bas. */
   .well {
     position: absolute;
-    inset: -18px; /* ~10px à l'écran d'une tablette (échelle ~0,57) */
-    border-radius: 16px;
+    inset: calc(-1 * var(--pad));
+    /* Arrondi de la carte (8px) prolongé de la marge : bords parallèles. */
+    border-radius: calc(8px + var(--pad));
     background: rgba(0, 0, 0, 0.22);
     box-shadow:
       inset 0 5px 12px rgba(0, 0, 0, 0.5),
