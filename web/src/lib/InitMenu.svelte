@@ -45,11 +45,23 @@
   $: validSuits = selectedSuits.length > 0
   $: validRanks = selectedRanks.length > 0
 
-  // Case "Aucune" : décoche toutes les valeurs d'un coup (plus rapide que de
-  // décocher les 13 cases une à une pour repartir d'une sélection vide).
-  function clearRanks() {
-    rankOrder.forEach((r) => (ranksChecked[r] = false))
+  // Valeurs réparties sur deux lignes : les cartes numérotées, puis les
+  // figures et l'As.
+  const numberRanks = [2, 3, 4, 5, 6, 7, 8, 9, 10]
+  const faceRanks = [11, 12, 13, 1]
+  $: allRanks = selectedRanks.length === rankOrder.length
+
+  // Cases "Aucune" et "Toutes" : décochent ou cochent toutes les valeurs d'un
+  // coup, plutôt que les 13 cases une à une.
+  //
+  // Ce sont des actions, pas des réglages : leur état coché se déduit de la
+  // sélection. Après un clic, on réaligne la case sur cet état — sinon, un clic
+  // sur « Aucune » alors que rien n'est coché la décochait à l'écran, l'état
+  // calculé n'ayant pas changé et Svelte ne la redessinant pas.
+  function setAllRanks(value, e) {
+    rankOrder.forEach((r) => (ranksChecked[r] = value))
     ranksChecked = { ...ranksChecked }
+    e.currentTarget.checked = true
   }
   // Estimation du nombre de cartes (aperçu en direct).
   $: estCards =
@@ -101,11 +113,23 @@
     <fieldset class="wide">
       <legend>Valeurs des cartes</legend>
       <div class="row ranks">
-        <label class="chip none" class:checked={!validRanks}>
-          <input type="checkbox" checked={!validRanks} on:change={clearRanks} />
+        <label class="chip all" class:checked={!validRanks}>
+          <input type="checkbox" checked={!validRanks} on:change={(e) => setAllRanks(false, e)} />
           <span>Aucune</span>
         </label>
-        {#each rankOrder as r}
+        {#each numberRanks as r}
+          <label class="chip" class:checked={ranksChecked[r]}>
+            <input type="checkbox" bind:checked={ranksChecked[r]} />
+            <span>{rankLabel[r]}</span>
+          </label>
+        {/each}
+      </div>
+      <div class="row ranks">
+        <label class="chip all" class:checked={allRanks}>
+          <input type="checkbox" checked={allRanks} on:change={(e) => setAllRanks(true, e)} />
+          <span>Toutes</span>
+        </label>
+        {#each faceRanks as r}
           <label class="chip" class:checked={ranksChecked[r]}>
             <input type="checkbox" bind:checked={ranksChecked[r]} />
             <span>{rankLabel[r]}</span>
@@ -161,13 +185,13 @@
     </fieldset>
     </div>
 
-    <div class="summary">
-      <span>Aperçu : <strong>{estCards}</strong> carte{estCards > 1 ? 's' : ''}</span>
-      {#if !validSuits}<span class="warn">— sélectionnez au moins une couleur</span>
-      {:else if !validRanks}<span class="warn">— sélectionnez au moins une valeur</span>{/if}
-    </div>
-
+    <!-- Aperçu et boutons sur une même ligne : une ligne de moins en hauteur. -->
     <div class="actions">
+      <div class="summary">
+        <span>Aperçu : <strong>{estCards}</strong> carte{estCards > 1 ? 's' : ''}</span>
+        {#if !validSuits}<span class="warn">— sélectionnez au moins une couleur</span>
+        {:else if !validRanks}<span class="warn">— sélectionnez au moins une valeur</span>{/if}
+      </div>
       <button class="reset" type="button" on:click={reset}>Réinitialiser</button>
       <button class="start" on:click={start} disabled={!validSuits || !validRanks}>
         Ouvrir la table
@@ -187,7 +211,10 @@
     font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   }
   .init-card {
-    width: min(980px, 96vw);
+    /* Largeur réglée sur la ligne la plus longue, celle des valeurs « Aucune,
+       2 … 10 », pour qu'elle tienne sans retour à la ligne : 690px de cases
+       mesurés sous Windows, plus une marge pour les polices d'Android. */
+    width: min(790px, 96vw);
     box-sizing: border-box;
     background: rgba(10, 30, 22, 0.92);
     color: #eef;
@@ -205,7 +232,10 @@
   fieldset { border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; padding: .6rem .9rem; margin: .4rem 0; min-width: 0; }
   legend { padding: 0 .4rem; font-size: .8rem; opacity: .8; text-transform: uppercase; letter-spacing: .04em; }
   .row { display: flex; gap: .6rem; align-items: center; flex-wrap: wrap; }
+  .row.ranks { gap: .45rem; }
   .row.ranks .chip { padding: .4rem .6rem; }
+  .row.ranks + .row.ranks { margin-top: .5rem; }
+  .chip.all { font-weight: 600; }
   .chip {
     display: inline-flex; align-items: center; gap: .4rem;
     padding: .45rem .7rem; border-radius: 999px; cursor: pointer;
@@ -226,16 +256,16 @@
   .opt { display: flex; align-items: center; gap: .5rem; cursor: pointer; font-size: .9rem; }
   .opt + .opt { margin-top: .5rem; }
   .opt input { accent-color: #2f9e63; }
-  .summary { margin: .6rem 0 .3rem; font-size: .9rem; opacity: .9; display: flex; gap: .6rem; align-items: center; flex-wrap: wrap; }
+  .summary { flex: 1; min-width: 0; font-size: .9rem; opacity: .9; display: flex; gap: .2rem .6rem; align-items: center; flex-wrap: wrap; }
   .warn { color: #ffd27a; font-size: .85rem; }
-  .actions { display: flex; gap: .6rem; margin-top: .6rem; }
+  .actions { display: flex; gap: .6rem; align-items: center; margin-top: .7rem; }
   .reset {
     padding: .75rem 1rem; border-radius: 9px; cursor: pointer;
     background: transparent; border: 1px solid rgba(255,255,255,0.25); color: #eef; font-size: .95rem;
   }
   .reset:hover { background: rgba(255,255,255,0.08); }
   .start {
-    flex: 1; padding: .75rem; border: 0; border-radius: 9px; cursor: pointer;
+    flex: none; padding: .75rem 1.8rem; border: 0; border-radius: 9px; cursor: pointer;
     background: #2f9e63; color: #fff; font-weight: 600; font-size: 1.02rem;
   }
   .start:hover:not(:disabled) { background: #36b46f; }
