@@ -400,8 +400,12 @@
              dessous sur toute la largeur de la zone de jeu. -->
         <aside class="sidebar" style="width:{sideW}px;">
           <span class="brand">🃏 Jouons</span>
-          <span class="me" title="Connecté en tant que {session.name}">{session.name}</span>
-          <span class="status" data-s={$wsStatus}>● {statusLabel}</span>
+          <!-- Nom et statut sur une même ligne ; le statut passe dessous si
+               le nom est trop long pour la colonne. -->
+          <div class="who">
+            <span class="me" title="Connecté en tant que {session.name}">{session.name}</span>
+            <span class="status" data-s={$wsStatus}>● {statusLabel}</span>
+          </div>
           <!-- Boutons repoussés en bas de la colonne (margin-top: auto). -->
           <button class="newgame" on:click={askNewGame}>Nouvelle partie</button>
           <button class="logout" on:click={askLeave}>Quitter la partie</button>
@@ -518,7 +522,8 @@
   }
   .brand { font-weight: 700; font-size: 1rem; }
   .me { color: #ffd27a; font-weight: 700; overflow-wrap: anywhere; }
-  .status { font-size: .78rem; opacity: .85; }
+  .who { display: flex; flex-wrap: wrap; align-items: baseline; gap: .1rem .5rem; }
+  .status { font-size: .78rem; opacity: .85; white-space: nowrap; }
   .newgame { margin-top: auto; }
   .status[data-s="open"] { color: #6fe39a; }
   .status[data-s="connecting"], .status[data-s="reconnecting"] { color: #ffd27a; }

@@ -178,6 +178,9 @@
   on:dragleave={onDragLeave}
   on:dragover={onDragOver}
 >
+  <!-- Emplacement du sabot, creusé dans le feutre : il marque sa place même
+       quand le sabot est vide. -->
+  <div class="well" aria-hidden="true"></div>
   {#if count > 0}
     <!-- Empilement visuel : quelques dos décalés pour l'effet "pile" -->
     {#each [0, 1, 2, 3] as i}
@@ -241,7 +244,21 @@
     touch-action: none;
     user-select: none;
   }
-  .sabot.empty { cursor: default; opacity: .55; }
+  .sabot.empty { cursor: default; }
+  /* Sabot vide : tout s'estompe, sauf son emplacement, qui reste marqué. */
+  .sabot.empty > :not(.well) { opacity: .55; }
+  /* Effet de creux : un feutre un peu plus sombre, ombré par le haut comme un
+     logement taillé dans la table, avec un léger reflet sur le bord bas. */
+  .well {
+    position: absolute;
+    inset: -18px; /* ~10px à l'écran d'une tablette (échelle ~0,57) */
+    border-radius: 16px;
+    background: rgba(0, 0, 0, 0.22);
+    box-shadow:
+      inset 0 5px 12px rgba(0, 0, 0, 0.5),
+      inset 0 -1px 0 rgba(255, 255, 255, 0.08);
+    pointer-events: none;
+  }
   .sabot.dragging { cursor: grabbing; }
   .stack-card {
     position: absolute;
