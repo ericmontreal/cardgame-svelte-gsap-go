@@ -248,7 +248,7 @@ export function applySabotShuffled(msg) {
   const count = Number(msg?.payload?.count) || 0
   const at = Date.now()
   sabotShuffle.set({ by, count, at })
-  pushTableNote(`${by}: mélange le sabot (${cardsLabel(count)})`, at) // même format compact que les distributions
+  pushTableNote(`${by} mélange le sabot (${cardsLabel(count)})`, at) // même format compact que les distributions
 }
 
 // Applique un message "cardsReceived" : des cartes sont entrées dans une main.
@@ -258,12 +258,12 @@ export function applyCardsReceived(msg) {
 }
 
 // receivedText rédige l'annonce d'une réception de cartes, sous forme
-// compacte « auteur: verbe … » — l'auteur du geste en tête, comme une ligne de
-// chat. Elle ne nomme jamais les cartes : le serveur ne les transmet pas.
-//   alice: distribue une carte à bob   (depuis le sabot)
-//   alice: donne 2 cartes à bob        (depuis le tapis ou sa main)
-//   alice: tire une carte              (du sabot, pour elle-même)
-//   alice: ramasse une carte           (du tapis, pour elle-même)
+// compacte « auteur verbe … » — l'auteur du geste en tête. Elle ne nomme
+// jamais les cartes : le serveur ne les transmet pas.
+//   alice distribue une carte à bob   (depuis le sabot)
+//   alice donne 2 cartes à bob        (depuis le tapis ou sa main)
+//   alice tire une carte              (du sabot, pour elle-même)
+//   alice ramasse une carte           (du tapis, pour elle-même)
 export function receivedText(p) {
   const by = String(p?.by ?? '?')
   const to = String(p?.to ?? '?')
@@ -272,13 +272,13 @@ export function receivedText(p) {
   const cards = n === 1 ? 'une carte' : `${n} cartes`
   if (p?.self) {
     switch (p.from) {
-      case 'sabot': return `${to}: tire ${cards}`
-      case 'table': return `${to}: ramasse ${cards}`
-      default: return `${to}: prend ${cards}`
+      case 'sabot': return `${to} tire ${cards}`
+      case 'table': return `${to} ramasse ${cards}`
+      default: return `${to} prend ${cards}`
     }
   }
   const verb = p?.from === 'sabot' ? 'distribue' : 'donne'
-  return `${by}: ${verb} ${cards} à ${to}`
+  return `${by} ${verb} ${cards} à ${to}`
 }
 
 function cardsLabel(n) {

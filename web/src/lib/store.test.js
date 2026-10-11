@@ -4,26 +4,26 @@ import { receivedText, mergeHandOrder } from './store.js'
 describe('receivedText', () => {
   it('« distribue » une carte venue du sabot', () => {
     expect(receivedText({ by: 'lucie', to: 'eric', self: false, from: 'sabot', count: 1 }))
-      .toBe('lucie: distribue une carte à eric')
+      .toBe('lucie distribue une carte à eric')
   })
 
   it('« donne » une carte venue du tapis, et accorde le nombre', () => {
     expect(receivedText({ by: 'lucie', to: 'eric', self: false, from: 'table', count: 1 }))
-      .toBe('lucie: donne une carte à eric')
+      .toBe('lucie donne une carte à eric')
     expect(receivedText({ by: 'lucie', to: 'eric', self: false, from: 'table', count: 3 }))
-      .toBe('lucie: donne 3 cartes à eric')
+      .toBe('lucie donne 3 cartes à eric')
   })
 
   it('« donne » une carte venue de la main', () => {
     expect(receivedText({ by: 'lucie', to: 'eric', self: false, from: 'hand', count: 1 }))
-      .toBe('lucie: donne une carte à eric')
+      .toBe('lucie donne une carte à eric')
   })
 
   it('distingue le joueur qui se sert lui-même', () => {
     expect(receivedText({ by: 'alice', to: 'alice', self: true, from: 'sabot', count: 1 }))
-      .toBe('alice: tire une carte')
+      .toBe('alice tire une carte')
     expect(receivedText({ by: 'alice', to: 'alice', self: true, from: 'table', count: 2 }))
-      .toBe('alice: ramasse 2 cartes')
+      .toBe('alice ramasse 2 cartes')
   })
 
   it("n'annonce rien sans carte", () => {
