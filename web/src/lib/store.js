@@ -257,29 +257,28 @@ export function applyCardsReceived(msg) {
   if (text) pushTableNote(text)
 }
 
-// receivedText rédige l'annonce d'une réception de cartes. Elle ne nomme
-// jamais les cartes : le serveur ne les transmet pas. La tournure évite
-// « de + nom » pour ne pas buter sur l'élision (« de alice »).
+// receivedText rédige l'annonce d'une réception de cartes, sous forme
+// compacte « auteur: verbe … » — l'auteur du geste en tête, comme une ligne de
+// chat. Elle ne nomme jamais les cartes : le serveur ne les transmet pas.
+//   alice: distribue une carte à bob   (depuis le sabot)
+//   alice: donne 2 cartes à bob        (depuis le tapis ou sa main)
+//   alice: tire une carte              (du sabot, pour elle-même)
+//   alice: ramasse une carte           (du tapis, pour elle-même)
 export function receivedText(p) {
   const by = String(p?.by ?? '?')
   const to = String(p?.to ?? '?')
   const n = Number(p?.count) || 0
   if (n <= 0) return ''
   const cards = n === 1 ? 'une carte' : `${n} cartes`
-  const given = n === 1 ? 'donnée' : 'données'
   if (p?.self) {
     switch (p.from) {
-      case 'sabot': return `${to} a tiré ${cards} du sabot`
-      case 'table': return `${to} a ramassé ${cards} du tapis`
-      default: return `${to} a pris ${cards}`
+      case 'sabot': return `${to}: tire ${cards}`
+      case 'table': return `${to}: ramasse ${cards}`
+      default: return `${to}: prend ${cards}`
     }
   }
-  switch (p?.from) {
-    case 'sabot': return `${to} a reçu ${cards} du sabot, ${given} par ${by}`
-    case 'table': return `${to} a reçu ${cards} du tapis, ${given} par ${by}`
-    case 'hand': return `${to} a reçu ${cards}, ${given} par ${by} depuis sa main`
-    default: return `${to} a reçu ${cards}, ${given} par ${by}`
-  }
+  const verb = p?.from === 'sabot' ? 'distribue' : 'donne'
+  return `${by}: ${verb} ${cards} à ${to}`
 }
 
 function cardsLabel(n) {

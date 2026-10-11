@@ -194,8 +194,10 @@ légalité d'un coup — il n'y a pas de coup légal.
   pile enfouie au fond du sabot est redistribuée dans le paquet. Tous les
   joueurs voient le sabot se battre, et le chat note qui l'a fait.
 - **Journal des distributions** : le chat note chaque carte qui entre dans une
-  main — « bob a reçu une carte du sabot, donnée par alice », « alice a ramassé
-  2 cartes du tapis ». Il dit qui, combien et d'où, jamais quelles cartes.
+  main, sous forme compacte — « alice: distribue une carte à bob » (depuis le
+  sabot), « alice: donne 2 cartes à bob » (depuis le tapis ou sa main),
+  « alice: tire une carte », « alice: ramasse une carte ». Il dit qui, combien
+  et à qui, jamais quelles cartes.
 - **Glisser-déposer** entre sabot, tapis, main et avatars des autres joueurs.
   Une carte donnée depuis le sabot est révélée à son destinataire ; un simple
   déplacement ne change **jamais** l'état face — un joueur qui a retourné sa

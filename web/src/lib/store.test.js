@@ -2,26 +2,28 @@ import { describe, it, expect } from 'vitest'
 import { receivedText, mergeHandOrder } from './store.js'
 
 describe('receivedText', () => {
-  it('annonce un don du sabot à un autre joueur', () => {
-    expect(receivedText({ by: 'alice', to: 'bob', self: false, from: 'sabot', count: 1 }))
-      .toBe('bob a reçu une carte du sabot, donnée par alice')
+  it('« distribue » une carte venue du sabot', () => {
+    expect(receivedText({ by: 'lucie', to: 'eric', self: false, from: 'sabot', count: 1 }))
+      .toBe('lucie: distribue une carte à eric')
   })
 
-  it('accorde le nombre', () => {
-    expect(receivedText({ by: 'alice', to: 'bob', self: false, from: 'table', count: 3 }))
-      .toBe('bob a reçu 3 cartes du tapis, données par alice')
+  it('« donne » une carte venue du tapis, et accorde le nombre', () => {
+    expect(receivedText({ by: 'lucie', to: 'eric', self: false, from: 'table', count: 1 }))
+      .toBe('lucie: donne une carte à eric')
+    expect(receivedText({ by: 'lucie', to: 'eric', self: false, from: 'table', count: 3 }))
+      .toBe('lucie: donne 3 cartes à eric')
   })
 
-  it('annonce un don de main à main', () => {
-    expect(receivedText({ by: 'alice', to: 'bob', self: false, from: 'hand', count: 1 }))
-      .toBe('bob a reçu une carte, donnée par alice depuis sa main')
+  it('« donne » une carte venue de la main', () => {
+    expect(receivedText({ by: 'lucie', to: 'eric', self: false, from: 'hand', count: 1 }))
+      .toBe('lucie: donne une carte à eric')
   })
 
   it('distingue le joueur qui se sert lui-même', () => {
     expect(receivedText({ by: 'alice', to: 'alice', self: true, from: 'sabot', count: 1 }))
-      .toBe('alice a tiré une carte du sabot')
+      .toBe('alice: tire une carte')
     expect(receivedText({ by: 'alice', to: 'alice', self: true, from: 'table', count: 2 }))
-      .toBe('alice a ramassé 2 cartes du tapis')
+      .toBe('alice: ramasse 2 cartes')
   })
 
   it("n'annonce rien sans carte", () => {
