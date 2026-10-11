@@ -183,8 +183,8 @@
   on:dragleave={onDragLeave}
   on:dragover={onDragOver}
 >
-  <!-- Emplacement du sabot, creusé dans le feutre : il marque sa place même
-       quand le sabot est vide. -->
+  <!-- Emplacement du sabot, en vert foncé : il marque sa place même quand
+       le sabot est vide. -->
   <div class="well" aria-hidden="true" style="--pad:{wellPad}px;"></div>
   {#if count > 0}
     <!-- Empilement visuel : quelques dos décalés pour l'effet "pile" -->
@@ -252,17 +252,16 @@
   .sabot.empty { cursor: default; }
   /* Sabot vide : tout s'estompe, sauf son emplacement, qui reste marqué. */
   .sabot.empty > :not(.well) { opacity: .55; }
-  /* Effet de creux : un feutre un peu plus sombre, ombré par le haut comme un
-     logement taillé dans la table, avec un léger reflet sur le bord bas. */
+  /* Emplacement du sabot : un aplat vert foncé uni, sans ombrage. (Un ombrage
+     intérieur simulait un creux ; il assombrissait le contour et a été
+     retiré à la demande.) Couleur opaque et non un voile noir translucide :
+     sur le dégradé du feutre, un voile donnait un fond inégal. */
   .well {
     position: absolute;
     inset: calc(-1 * var(--pad));
     /* Arrondi de la carte (8px) prolongé de la marge : bords parallèles. */
     border-radius: calc(8px + var(--pad));
-    background: rgba(0, 0, 0, 0.22);
-    box-shadow:
-      inset 0 5px 12px rgba(0, 0, 0, 0.5),
-      inset 0 -1px 0 rgba(255, 255, 255, 0.08);
+    background: #0e4a32;
     pointer-events: none;
   }
   .sabot.dragging { cursor: grabbing; }
