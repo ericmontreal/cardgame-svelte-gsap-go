@@ -8,7 +8,19 @@
   import { createEventDispatcher } from 'svelte'
   import { loadDeckConfig, saveDeckConfig, clearDeckConfig } from './store.js'
 
+  // Une partie est en cours (le joueur vient de « Nouvelle partie ») : on lui
+  // offre de revenir à la table sans rien changer, et on l'avertit de ce que
+  // « Ouvrir la table » fera aux autres.
+  export let gameInProgress = false
+
   const dispatch = createEventDispatcher()
+
+  function cancel() {
+    if (gameInProgress) dispatch('cancel')
+  }
+  function onKey(e) {
+    if (e.key === 'Escape') cancel()
+  }
 
   // ---- Valeurs par défaut (jeu classique 52 cartes) ----
   const defaultSuits = { club: true, diamond: true, heart: true, spade: true }
@@ -101,10 +113,19 @@
   }
 </script>
 
+<svelte:window on:keydown={onKey} />
+
 <div class="init-wrap">
   <div class="init-card">
     <h2>Préparation du sabot</h2>
     <p class="subtitle">Choisissez la composition du jeu, puis ouvrez la table.</p>
+    {#if gameInProgress}
+      <p class="in-progress">
+        Une partie est en cours. <b>Ouvrir la table</b> remplacera le sabot et
+        videra la main de <b>tous les joueurs</b>. Pour la poursuivre, choisissez
+        <b>Revenir à la partie</b>.
+      </p>
+    {/if}
 
     <!-- Rubriques sur deux colonnes : empilées sur une seule, elles rendaient
          la fenêtre plus haute qu'une tablette en paysage, et la ligne des
@@ -192,6 +213,9 @@
         {#if !validSuits}<span class="warn">— sélectionnez au moins une couleur</span>
         {:else if !validRanks}<span class="warn">— sélectionnez au moins une valeur</span>{/if}
       </div>
+      {#if gameInProgress}
+        <button class="back" type="button" on:click={cancel} title="Retrouver la partie en cours, sans rien changer (Échap)">Revenir à la partie</button>
+      {/if}
       <button class="reset" type="button" on:click={reset}>Réinitialiser</button>
       <button class="start" on:click={start} disabled={!validSuits || !validRanks}>
         Ouvrir la table
@@ -264,6 +288,17 @@
     background: transparent; border: 1px solid rgba(255,255,255,0.25); color: #eef; font-size: .95rem;
   }
   .reset:hover { background: rgba(255,255,255,0.08); }
+  .back {
+    padding: .75rem 1rem; border-radius: 9px; cursor: pointer;
+    background: transparent; border: 1px solid #ffd27a; color: #ffd27a; font-size: .95rem;
+  }
+  .back:hover { background: rgba(255,210,122,0.12); }
+  .in-progress {
+    margin: 0 0 .6rem; padding: .5rem .8rem; border-radius: 8px;
+    background: rgba(255,210,122,0.1); border-left: 3px solid #ffd27a;
+    font-size: .85rem; line-height: 1.4;
+  }
+  .in-progress b { color: #ffd27a; }
   .start {
     flex: none; padding: .75rem 1.8rem; border: 0; border-radius: 9px; cursor: pointer;
     background: #2f9e63; color: #fff; font-weight: 600; font-size: 1.02rem;

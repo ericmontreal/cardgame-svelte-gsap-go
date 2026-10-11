@@ -191,6 +191,13 @@
     confirmingNewGame = false
     step = 'init'
   }
+  // Retour à la partie depuis la préparation du sabot. Rien n'a été envoyé au
+  // serveur tant que « Ouvrir la table » n'est pas cliqué : la partie a
+  // continué pendant ce temps (la connexion reste ouverte et l'état à jour),
+  // et le joueur la retrouve telle que les autres l'ont laissée.
+  function backToGame() {
+    step = 'table'
+  }
 
   // ---- Départ de la partie ----
   // Quitter par ce bouton est un ABANDON, pas une absence : la main du partant
@@ -311,7 +318,7 @@
     </div>
 
   {:else if step === 'init'}
-    <InitMenu on:start={onInitStart} />
+    <InitMenu gameInProgress={st.initialized} on:start={onInitStart} on:cancel={backToGame} />
 
   {:else}
     <div class="layout">
@@ -374,10 +381,12 @@
         <div class="modal-backdrop" on:click={cancelNewGame}>
           <div class="modal" on:click|stopPropagation>
             <h2>Nouvelle partie ?</h2>
-            <p>Le sabot sera remplacé et la main de <b>tous les joueurs connectés</b> sera vidée. Cette action est immédiate pour tout le monde.</p>
+            <!-- L'ancien texte annonçait une action « immédiate pour tout le
+                 monde » : faux, rien n'est envoyé avant « Ouvrir la table ». -->
+            <p>Vous allez préparer un nouveau sabot. Rien ne change pour les autres joueurs tant que vous n'avez pas cliqué sur <b>Ouvrir la table</b> : d'ici là, vous pourrez encore revenir à la partie en cours.</p>
             <div class="modal-actions">
               <button class="cancel" on:click={cancelNewGame}>Annuler</button>
-              <button class="confirm" on:click={confirmNewGame}>Confirmer</button>
+              <button class="confirm" on:click={confirmNewGame}>Préparer le sabot</button>
             </div>
           </div>
         </div>
