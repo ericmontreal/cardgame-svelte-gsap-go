@@ -304,7 +304,7 @@
     playObserver = new ResizeObserver(() => { scale = fitScale(play.clientWidth, play.clientHeight) })
     playObserver.observe(play)
   }
-  // Colonne de gauche : environ deux cartes de large, à l'échelle du tapis.
+  // Colonne de gauche : une carte et demie de large, à l'échelle du tapis.
   $: sideW = sidebarWidth(scale)
   onDestroy(() => playObserver?.disconnect())
   // Cartes de la main à la taille des cartes du tapis, telles qu'affichées.
@@ -441,18 +441,7 @@
         <aside class="sidebar" style="width:{sideW}px;">
           <!-- Logo du jeu (public/logo-cest-vert.webp : recadré sur le disque,
                320px, fond transparent), à la place de l'icône et du titre. -->
-          <div class="brand">
-            <img class="brand-logo" src="/logo-cest-vert.webp" alt="C'est vert !" />
-            <!-- Crédits à droite du logo, une ligne chacun. Lien dans un nouvel
-                 onglet : la partie en cours reste ouverte. -->
-            <p class="credits">
-              <!-- Espaces insécables : si la place manque, la coupure tombe
-                   entre deux noms, jamais au milieu d'un nom. -->
-              <span>Jeu&nbsp;de cartes familial</span>
-              <span>par&nbsp;Eric, Lucie et&nbsp;Claude</span>
-              <span>Motifs <a href="https://svg-cards.sourceforge.net/" target="_blank" rel="noopener noreferrer">D.&nbsp;Bellot</a></span>
-            </p>
-          </div>
+          <img class="brand-logo" src="/logo-cest-vert.webp" alt="C'est vert !" />
           <!-- Joueurs, soi compris, une seule mise en forme (cf. roster). -->
           <ul class="roster" aria-label="Joueurs">
             {#each roster as p (p.userId)}
@@ -465,6 +454,15 @@
           <!-- Boutons repoussés en bas de la colonne (margin-top: auto). -->
           <button class="newgame" on:click={askNewGame}>Nouvelle partie</button>
           <button class="logout" on:click={askLeave}>Quitter la partie</button>
+          <!-- Crédits au pied de la colonne, une ligne chacun. Lien dans un
+               nouvel onglet : la partie en cours reste ouverte. Espaces
+               insécables : si la place manque, la coupure tombe entre deux
+               noms, jamais au milieu d'un nom. -->
+          <p class="credits">
+            <span>Jeu&nbsp;de cartes familial</span>
+            <span>par&nbsp;Eric, Lucie et&nbsp;Claude</span>
+            <span>Motifs <a href="https://svg-cards.sourceforge.net/" target="_blank" rel="noopener noreferrer">D.&nbsp;Bellot</a></span>
+          </p>
         </aside>
         <div class="table-cell" bind:this={tableCellEl}>
         <Table
@@ -568,7 +566,7 @@
   /* Colonne de titre : les éléments de l'ancienne barre, empilés. Étroite à
      dessein — chaque pixel pris ici l'est sur la largeur du tapis, qui est ce
      qui limite sa taille sur une tablette. */
-  /* Largeur posée en ligne : deux cartes à l'échelle du tapis (sidebarWidth),
+  /* Largeur posée en ligne : une carte et demie à l’échelle du tapis (sidebarWidth),
      marges et filet compris — d'où le border-box. */
   .sidebar {
     grid-row: 1; grid-column: 1;
@@ -581,10 +579,8 @@
   }
   /* Logo : moitié de la largeur de la colonne, plafonné à 85px sur grand écran
      (la colonne y dépasse 280px), calé à gauche. */
-  /* Logo à gauche, crédits à sa droite, centrés sur sa hauteur. */
-  .brand { display: flex; align-items: center; gap: .4rem; margin-bottom: .3rem; }
-  /* Logo : moitié de la largeur de la colonne, plafonné à 85px. */
-  .brand-logo { display: block; flex: none; width: 50%; max-width: 85px; height: auto; }
+  /* Logo calé à gauche, plafonné à 85px. */
+  .brand-logo { display: block; flex: none; align-self: flex-start; width: 70%; max-width: 85px; height: auto; margin-bottom: .3rem; }
   /* Crédits en tout petit, alignés à gauche, une ligne chacun quand la place
      le permet. Le retour à la ligne reste autorisé : avec une police de base
      agrandie dans le navigateur (réglage ou zoom), une ligne interdite de
@@ -594,9 +590,9 @@
   .credits span + span { margin-top: .1em; }
   .credits a { color: #ffd27a; text-decoration: underline; text-underline-offset: 2px; }
   .newgame { margin-top: auto; }
-  .roster { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .15rem; }
-  .roster li { font-size: .85rem; color: #dfe; overflow-wrap: anywhere; }
-  .roster li::before { content: '●'; color: #8a948f; font-size: .7em; margin-right: .4em; vertical-align: .1em; }
+  .roster { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .3rem; }
+  .roster li { font-size: 1.05rem; color: #dfe; overflow-wrap: anywhere; }
+  .roster li::before { content: '●'; color: #8a948f; font-size: 1em; margin-right: .35em; }
   .roster li.online::before { color: #6fe39a; }
   .roster li:not(.online) { opacity: .6; }
   .roster li.me .name { color: #ffd27a; font-weight: 700; }
