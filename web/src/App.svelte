@@ -430,7 +430,10 @@
         <aside class="sidebar" style="width:{sideW}px;">
           <!-- Logo du jeu (public/logo-cest-vert.webp : recadré sur le disque,
                320px, fond transparent), à la place de l'icône et du titre. -->
-          <img class="brand-logo" src="/logo-cest-vert.webp" alt="C'est vert !" />
+          <div class="brand">
+            <img class="brand-logo" src="/logo-cest-vert.webp" alt="C'est vert !" />
+            <span class="credits">Par Éric, David et Claude :)</span>
+          </div>
           <!-- Nom et statut sur une même ligne ; le statut passe dessous si
                le nom est trop long pour la colonne. -->
           <div class="who">
@@ -555,7 +558,10 @@
   }
   /* Logo : moitié de la largeur de la colonne, plafonné à 85px sur grand écran
      (la colonne y dépasse 280px), calé à gauche. */
-  .brand-logo { display: block; width: 50%; max-width: 85px; height: auto; margin: 0 0 .3rem; }
+  .brand { display: flex; align-items: center; gap: .45rem; margin-bottom: .3rem; }
+  .brand-logo { display: block; flex: none; width: 50%; max-width: 85px; height: auto; }
+  /* Mention des auteurs, en tout petit à droite du logo. */
+  .credits { font-size: .62rem; line-height: 1.3; opacity: .7; font-style: italic; }
   .me { color: #ffd27a; font-weight: 700; overflow-wrap: anywhere; }
   .who { display: flex; flex-wrap: wrap; align-items: baseline; gap: .1rem .5rem; }
   .status { font-size: .78rem; opacity: .85; white-space: nowrap; }
