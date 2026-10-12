@@ -239,6 +239,41 @@ func TestCardsKeepTheirFaceWhenReturnedToTheSabot(t *testing.T) {
 	}
 }
 
+func TestHandFaceUpOptionTurnsCardsEnteringAHandFaceUp(t *testing.T) {
+	e := newEngineWithCards(t, 4)
+	e.ensurePlayer("u-alice", "alice", tableW, tableH)
+	e.ensurePlayer("u-bob", "bob", tableW, tableH)
+	e.SetHandFaceUp(true)
+	// Depuis le sabot : face visible en main.
+	a, _ := e.DrawSabot(Transfer{Target: TargetHand, OwnerID: "u-alice"})
+	if !e.findCard(a).FaceUp {
+		t.Fatal("avec l'option, une carte tirée dans une main doit y être face visible")
+	}
+	// Le joueur peut la retourner, et la reposer dans sa main ne la retourne pas.
+	e.Flip(a)
+	e.TransferCard(Transfer{CardID: a, Target: TargetAvatar, OwnerID: "u-alice"})
+	if e.findCard(a).FaceUp {
+		t.Fatal("une carte reposée dans la main qui la tenait garde la face choisie par son joueur")
+	}
+	// Donnée à un autre joueur : elle entre dans sa main, face visible.
+	e.TransferCard(Transfer{CardID: a, Target: TargetAvatar, OwnerID: "u-bob"})
+	if !e.findCard(a).FaceUp {
+		t.Fatal("une carte qui entre dans la main d'un autre joueur doit y être face visible")
+	}
+	// Depuis le tapis, face cachée : face visible en main.
+	b, _ := e.DrawSabot(Transfer{Target: TargetTable, X: 300, Y: 300})
+	e.TransferCard(Transfer{CardID: b, Target: TargetHand, OwnerID: "u-alice"})
+	if !e.findCard(b).FaceUp {
+		t.Fatal("une carte ramassée du tapis doit être face visible en main")
+	}
+	// Option désactivée : retour à la règle générale, aucun retournement.
+	e.SetHandFaceUp(false)
+	c, _ := e.DrawSabot(Transfer{Target: TargetHand, OwnerID: "u-alice"})
+	if e.findCard(c).FaceUp {
+		t.Fatal("sans l'option, une carte tirée en main reste face cachée")
+	}
+}
+
 func TestDrawSabotNeverRevealsTheCard(t *testing.T) {
 	// Aucun retournement automatique : seul un double-clic retourne une carte.
 	// Tirée sur le tapis ou distribuée dans une main, elle reste face cachée.

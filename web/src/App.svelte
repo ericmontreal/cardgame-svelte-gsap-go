@@ -169,9 +169,9 @@
   // La WS est déjà connectée et ouverte à ce stade (on n'atteint 'init' qu'après
   // avoir reçu le premier "state" du serveur sur cette connexion).
   function onInitStart(e) {
-    const { config, shuffle, snapEnabled: snap } = e.detail
+    const { config, shuffle, snapEnabled: snap, handFaceUp } = e.detail
     snapEnabled = snap ?? true
-    ws?.sendInit(config, shuffle)
+    ws?.sendInit(config, shuffle, handFaceUp)
     step = 'table'
   }
 

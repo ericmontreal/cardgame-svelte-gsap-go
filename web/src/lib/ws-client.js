@@ -4,7 +4,7 @@
 //   E : émetteur   R : recepteur
 //
 //   client -> serveur
-//     { type:'init',      payload:{ config, shuffle } }           prépare le sabot (menu init)
+//     { type:'init',      payload:{ config, shuffle, handFaceUp } } prépare le sabot (menu init)
 //     { type:'flip',      payload:{ cardId } }                     retourne une carte
 //     { type:'front',     payload:{ cardId } }                     amène au premier plan (clic)
 //     { type:'rotate',    payload:{ cardId, rotate } }             rotation
@@ -180,8 +180,8 @@ export function createWsClient(opts = {}) {
 
     setToken(token) { cfg.token = token },
 
-    sendInit(config, shuffle = false) {
-      return send({ type: 'init', payload: { config, shuffle } })
+    sendInit(config, shuffle = false, handFaceUp = false) {
+      return send({ type: 'init', payload: { config, shuffle, handFaceUp } })
     },
     sendFlip(cardId) {
       return send({ type: 'flip', payload: { cardId } })

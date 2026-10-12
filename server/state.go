@@ -78,6 +78,11 @@ type engine struct {
 	// retour après une absence ; mémoire en RAM, comme le reste.
 	seatPos map[string][2]float64
 	zTop  int            // compteur d'ordre Z (croissant = devant)
+	// handFaceUp : réglage de la partie (menu « Configuration du jeu ») —
+	// toute carte qui ENTRE dans une main y est mise face visible. Seule
+	// exception, choisie à l'ouverture de la table, à la règle « aucune carte
+	// ne se retourne d'elle-même ».
+	handFaceUp bool
 }
 
 func newEngine() *engine {
@@ -512,6 +517,10 @@ func (e *engine) LoadDeck(cards []Card) {
 	e.zTop = 0
 }
 
+// SetHandFaceUp règle, pour la partie qui commence, la mise face visible
+// systématique des cartes qui entrent dans une main (cf. handFaceUp).
+func (e *engine) SetHandFaceUp(on bool) { e.handFaceUp = on }
+
 // Initialized indique si un sabot a été chargé.
 func (e *engine) Initialized() bool { return len(e.cards) > 0 }
 
@@ -821,6 +830,12 @@ func (e *engine) applyTransfer(c *Card, fromZone Zone, t Transfer) TransferResul
 		received := fromZone
 		if fromZone == ZoneHand && prevHandOwner == t.OwnerID {
 			received = ""
+		}
+		// Réglage « cartes de la main face visible » : seule une carte qui
+		// ENTRE dans la main est retournée ; une carte reposée dans la main
+		// qui la tenait garde la face que son joueur lui a donnée.
+		if e.handFaceUp && received != "" {
+			c.FaceUp = true
 		}
 		return TransferResult{
 			// Public si elle venait de la table/sabot, mais AUSSI pour un don

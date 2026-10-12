@@ -32,6 +32,7 @@
   const defaultJokers = 'none'
   const defaultShuffle = true
   const defaultSnapEnabled = true
+  const defaultHandFaceUp = false
 
   // ---- État du formulaire, pré-rempli depuis la config persistée ----
   const persisted = loadDeckConfig()
@@ -41,6 +42,7 @@
   let jokers = persisted?.jokers ?? defaultJokers
   let shuffle = persisted?.shuffle ?? defaultShuffle
   let snapEnabled = persisted?.snapEnabled ?? defaultSnapEnabled
+  let handFaceUp = persisted?.handFaceUp ?? defaultHandFaceUp
 
   // Ordre d'affichage des valeurs, comme config_jeu.html : 2..10, Valets,
   // Dames, Rois, As (l'As en dernier, convention "carte forte").
@@ -92,7 +94,7 @@
 
   function start() {
     if (!canStart) return
-    saveDeckConfig({ suits: { ...suits }, ranks: { ...ranksChecked }, deckCount, jokers, shuffle, snapEnabled })
+    saveDeckConfig({ suits: { ...suits }, ranks: { ...ranksChecked }, deckCount, jokers, shuffle, snapEnabled, handFaceUp })
     dispatch('start', {
       config: {
         deckCount,
@@ -102,6 +104,7 @@
       },
       shuffle,
       snapEnabled,
+      handFaceUp,
     })
   }
 
@@ -113,6 +116,7 @@
     jokers = defaultJokers
     shuffle = defaultShuffle
     snapEnabled = defaultSnapEnabled
+    handFaceUp = defaultHandFaceUp
   }
 </script>
 
@@ -120,8 +124,7 @@
 
 <div class="init-wrap">
   <div class="init-card">
-    <h2>Préparation du sabot</h2>
-    <p class="subtitle">Choisissez la composition du jeu, puis ouvrez la table.</p>
+    <h2>Configuration du jeu</h2>
     {#if gameInProgress}
       <p class="in-progress">
         Une partie est en cours. <b>Ouvrir la table</b> remplacera le sabot et
@@ -206,6 +209,13 @@
         <input type="checkbox" bind:checked={snapEnabled} />
         Aimanter les cartes proches (placement côte à côte)
       </label>
+      <!-- Réglage de la partie, pour tous les joueurs : une carte qui entre
+           dans une main y est mise face visible (le joueur peut toujours la
+           retourner ensuite d'un double-clic). -->
+      <label class="opt">
+        <input type="checkbox" bind:checked={handFaceUp} />
+        Dans la main, placer systématiquement les cartes face visible
+      </label>
     </fieldset>
     </div>
 
@@ -249,8 +259,8 @@
     border: 1px solid rgba(255,255,255,0.08);
     box-shadow: 0 20px 60px rgba(0,0,0,0.45);
   }
-  h2 { margin: 0 0 .2rem; font-size: 1.35rem; }
-  .subtitle { margin: 0 0 .6rem; opacity: .7; font-size: .88rem; }
+  h2 { margin: 0 0 .6rem; font-size: 1.35rem; }
+
   .fields { display: grid; grid-template-columns: 1fr 1fr; column-gap: .9rem; }
   .fields .wide { grid-column: 1 / -1; }
   /* En portrait étroit (téléphone), retour à une seule colonne. */

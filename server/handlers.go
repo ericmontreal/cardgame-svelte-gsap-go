@@ -44,6 +44,9 @@ const (
 type payloadInit struct {
 	Config  DeckConfig `json:"config"`
 	Shuffle bool       `json:"shuffle"`
+	// HandFaceUp : les cartes qui entrent dans une main y sont mises face
+	// visible (option du menu « Configuration du jeu »).
+	HandFaceUp bool `json:"handFaceUp"`
 }
 
 // payloadAbandon porte le choix du joueur qui quitte : "table" (main étalée
@@ -237,6 +240,7 @@ func (app *application) handleClientMsg(c *client, room string, m Message) {
 			ShuffleDeck(cards)
 		}
 		app.engine.LoadDeck(cards)
+		app.engine.SetHandFaceUp(p.HandFaceUp)
 		app.engine.mu.Unlock()
 		log.Printf("init: sabot chargé (%d cartes) par %s", len(cards), c.name)
 		app.broadcastState(room)

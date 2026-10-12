@@ -189,6 +189,10 @@ légalité d'un coup — il n'y a pas de coup légal.
 - **Composition du sabot** au menu d'initialisation : nombre de jeux (1 à 8),
   couleurs et rangs à la carte, jokers (aucun / noir / rouge / les deux),
   mélange Fisher-Yates optionnel.
+- **Option « Dans la main, placer systématiquement les cartes face visible »**
+  (menu « Configuration du jeu », pour toute la partie) : toute carte qui entre
+  dans une main y est mise face visible ; son joueur peut toujours la retourner
+  ensuite d'un double-clic.
 - **Mélange en cours de partie** : le bouton « Mélanger », sous le sabot, bat
   les cartes qui y restent. Le tapis et les mains ne sont pas ramassés ; une
   pile enfouie au fond du sabot est redistribuée dans le paquet. Tous les
