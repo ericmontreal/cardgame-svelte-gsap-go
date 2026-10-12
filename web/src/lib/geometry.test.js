@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { fitScale, sidebarWidth, projectOnSeatRing, placeSeat, TABLE_W, TABLE_H, CARD_H, HAND_CHROME, MIN_SCALE, SEAT_BAND, FELT_INSET, SEAT_GAP } from './geometry.js'
+import { fitScale, sidebarWidth, projectOnSeatRing, placeSeat, TABLE_W, TABLE_H, CARD_H, HAND_CHROME, MIN_SCALE, SEAT_BAND, FELT_INSET, SEAT_GAP, SIDEBAR_RAIL } from './geometry.js'
 
 describe('fitScale', () => {
   it('ne grossit jamais le tapis', () => {
@@ -11,6 +11,15 @@ describe('fitScale', () => {
       const s = fitScale(w, h)
       expect(sidebarWidth(s) + TABLE_W * s).toBeLessThanOrEqual(w)
       expect((TABLE_H + 2 * SEAT_BAND) * s + CARD_H * s + HAND_CHROME).toBeLessThanOrEqual(h)
+    }
+  })
+
+  it('colonne repliée : la languette seule, et un tapis au moins aussi grand', () => {
+    for (const [w, h] of [[1280, 720], [1020, 720], [1660, 960]]) {
+      const open = fitScale(w, h), folded = fitScale(w, h, 12, 1)
+      expect(folded).toBeGreaterThanOrEqual(open)
+      expect(sidebarWidth(folded, 1)).toBe(SIDEBAR_RAIL)
+      expect(SIDEBAR_RAIL + TABLE_W * folded).toBeLessThanOrEqual(w)
     }
   })
 

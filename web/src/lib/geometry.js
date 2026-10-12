@@ -101,8 +101,14 @@ export const HAND_CHROME = 14
 // réduite deux fois depuis l'origine (2 cartes + 24px) : −25 %, puis −10 %.
 export const SIDEBAR_CARDS = 1.35
 export const SIDEBAR_CHROME = 16
-export function sidebarWidth(scale) {
-  return Math.round(SIDEBAR_CARDS * CARD_W * scale) + SIDEBAR_CHROME
+// Colonne repliée : une languette de largeur fixe, comme celle du chat.
+export const SIDEBAR_RAIL = 30
+// fold : 0 = colonne déployée, 1 = repliée ; les valeurs intermédiaires
+// servent à l'animation du repli (largeur et échelle du tapis glissent
+// ensemble, sans saut).
+export function sidebarWidth(scale, fold = 0) {
+  const open = SIDEBAR_CARDS * CARD_W * scale + SIDEBAR_CHROME
+  return Math.round((1 - fold) * open + fold * SIDEBAR_RAIL)
 }
 
 // fitScale calcule l'échelle d'affichage du tapis pour une zone de jeu de
@@ -116,8 +122,10 @@ export function sidebarWidth(scale) {
 // colonne, qui redimensionneraient le tapis, et ainsi de suite.
 //   largeur : SIDEBAR_CHROME + 2·CARD_W·s + TABLE_W·s + marge <= width
 //   hauteur : (TABLE_H + 2·SEAT_BAND)·s + CARD_H·s + HAND_CHROME + marge <= height
-export function fitScale(width, height, pad = 12) {
-  const byWidth = (width - SIDEBAR_CHROME - pad) / (TABLE_W + SIDEBAR_CARDS * CARD_W)
+//   (colonne repliée : SIDEBAR_RAIL au lieu de la colonne ; fold mélange les deux)
+export function fitScale(width, height, pad = 12, fold = 0) {
+  const fixed = (1 - fold) * SIDEBAR_CHROME + fold * SIDEBAR_RAIL
+  const byWidth = (width - fixed - pad) / (TABLE_W + (1 - fold) * SIDEBAR_CARDS * CARD_W)
   const byHeight = (height - HAND_CHROME - pad) / (TABLE_H + 2 * SEAT_BAND + CARD_H)
   const s = Math.min(1, byWidth, byHeight)
   return Math.max(MIN_SCALE, Math.round(s * 1000) / 1000)

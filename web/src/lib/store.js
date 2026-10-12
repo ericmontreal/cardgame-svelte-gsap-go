@@ -106,6 +106,22 @@ export function saveChatHidden(hidden) {
   } catch {}
 }
 
+// Repli de la colonne de gauche : même principe que celui du chat.
+const SIDEBAR_HIDDEN_KEY = 'cardgame.sidebarHidden'
+
+export function loadSidebarHidden() {
+  try {
+    return localStorage.getItem(SIDEBAR_HIDDEN_KEY) === '1'
+  } catch {}
+  return false
+}
+
+export function saveSidebarHidden(hidden) {
+  try {
+    localStorage.setItem(SIDEBAR_HIDDEN_KEY, hidden ? '1' : '0')
+  } catch {}
+}
+
 // ---- Auth : POST /api/login ----------------------------------------------
 
 export async function login(username, password) {

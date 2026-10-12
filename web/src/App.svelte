@@ -8,6 +8,7 @@
     tableState, myHand, wsStatus,
     applyState, applyHand, applyChat, liveDrag, sabotShuffle, applySabotShuffled, applyCardsReceived, reorderHand,
     loadSession, saveSession, clearSession, resetLocal, login, isSessionValid,
+    loadSidebarHidden, saveSidebarHidden,
   } from './lib/store.js'
   import { createWsClient } from './lib/ws-client.js'
   import { reloadIfNewVersion } from './lib/version.js'
@@ -315,16 +316,38 @@
   let tableCellEl
   let scale = 1
   let playObserver = null
+  let playW = 0, playH = 0
   $: observePlay(playEl)
   function observePlay(play) {
     playObserver?.disconnect()
     playObserver = null
     if (!play) return
-    playObserver = new ResizeObserver(() => { scale = fitScale(play.clientWidth, play.clientHeight) })
+    playObserver = new ResizeObserver(() => { playW = play.clientWidth; playH = play.clientHeight })
     playObserver.observe(play)
   }
-  // Colonne de gauche : 1,35 carte de large, à l'échelle du tapis.
-  $: sideW = sidebarWidth(scale)
+  $: if (playW && playH) scale = fitScale(playW, playH, 12, sideFold)
+
+  // ---- Repli de la colonne de gauche (comme le chat à droite) ----
+  // sideFold va de 0 (déployée) à 1 (repliée) ; GSAP l'anime, et la largeur
+  // de la colonne comme l'échelle du tapis en découlent : le tapis s'agrandit
+  // en même temps que la colonne se retire, sans saut. Préférence conservée.
+  const SIDE_SLIDE_S = 0.32
+  let sideHidden = loadSidebarHidden()
+  let sideFold = sideHidden ? 1 : 0
+  let sideTween = null
+  function toggleSidebar() {
+    sideHidden = !sideHidden
+    saveSidebarHidden(sideHidden)
+    sideTween?.kill()
+    const target = sideHidden ? 1 : 0
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) { sideFold = target; return }
+    const o = { f: sideFold }
+    sideTween = gsap.to(o, { f: target, duration: SIDE_SLIDE_S, ease: 'power2.inOut', onUpdate: () => { sideFold = o.f } })
+  }
+  // Colonne de gauche : 1,35 carte de large, à l'échelle du tapis (sideOpenW,
+  // largeur du contenu, qui ne se comprime pas pendant le repli : il glisse).
+  $: sideOpenW = sidebarWidth(scale)
+  $: sideW = sidebarWidth(scale, sideFold)
   onDestroy(() => playObserver?.disconnect())
   // Cartes de la main à la taille des cartes du tapis, telles qu'affichées.
   $: handCardW = Math.round(CARD_W * scale)
@@ -458,6 +481,16 @@
              pour rendre sa hauteur au jeu. Elle s'arrête à la main, qui court
              dessous sur toute la largeur de la zone de jeu. -->
         <aside class="sidebar" style="width:{sideW}px;">
+          <!-- Colonne repliée : une languette pour la rouvrir, comme le chat. -->
+          <button class="side-rail" style="opacity:{sideFold}; visibility:{sideFold > 0.05 ? 'visible' : 'hidden'};"
+                  on:click={toggleSidebar} title="Afficher le panneau">
+            <span class="chev">›</span>
+            <span class="vert">Joueurs</span>
+          </button>
+          <!-- Contenu à largeur pleine, qui sort en glissant vers la gauche ;
+               la colonne, en overflow:hidden, le rogne en se rétrécissant. -->
+          <div class="side-panel" style="width:{sideOpenW}px; transform:translateX({-sideFold * sideOpenW}px); opacity:{1 - sideFold}; visibility:{sideFold < 0.95 ? 'visible' : 'hidden'};">
+          <button class="side-hide" on:click={toggleSidebar} title="Masquer le panneau">‹</button>
           <!-- Logo du jeu (public/logo-cest-vert.webp : recadré sur le disque,
                320px, fond transparent), à la place de l'icône et du titre. -->
           <img class="brand-logo" src="/logo-cest-vert.webp" alt="C'est vert !" />
@@ -482,6 +515,7 @@
             <span>par&nbsp;Eric, Lucie et&nbsp;Claude</span>
             <span>Motifs <a href="https://svg-cards.sourceforge.net/" target="_blank" rel="noopener noreferrer">D.&nbsp;Bellot</a></span>
           </p>
+          </div>
         </aside>
         <div class="table-cell" bind:this={tableCellEl}>
         <Table
@@ -591,12 +625,38 @@
   .sidebar {
     grid-row: 1; grid-column: 1;
     box-sizing: border-box;
-    display: flex; flex-direction: column; align-items: stretch; gap: .5rem;
-    padding: 12px 10px;
+    position: relative; overflow: hidden;
     background: rgba(0,0,0,0.45);
     border-right: 2px solid rgba(255,255,255,0.1);
     font-size: .82rem; line-height: 1.3;
   }
+  .side-panel {
+    position: absolute; inset: 0 auto 0 0;
+    box-sizing: border-box;
+    display: flex; flex-direction: column; align-items: stretch; gap: .5rem;
+    padding: 12px 10px;
+  }
+  /* Bouton de repli, dans le coin haut droit, comme « › » sur le chat. */
+  .side-hide {
+    position: absolute; top: 6px; right: 4px;
+    border: 0; background: transparent; cursor: pointer;
+    color: #cfe; opacity: .7;
+    font-size: 1.2rem; line-height: 1;
+    padding: 2px 6px; border-radius: 6px;
+  }
+  .side-hide:hover { opacity: 1; background: rgba(255,255,255,0.1); }
+  /* Languette de la colonne repliée (cf. .reopen dans Chat.svelte). */
+  .side-rail {
+    position: absolute; inset: 0 auto 0 0;
+    width: 28px;
+    border: 0; background: transparent; cursor: pointer;
+    color: #cfe;
+    display: flex; flex-direction: column; align-items: center; gap: 8px;
+    padding: 10px 0 0;
+  }
+  .side-rail:hover { background: rgba(255,255,255,0.07); }
+  .side-rail .chev { font-size: 1.2rem; line-height: 1; }
+  .side-rail .vert { writing-mode: vertical-rl; font-size: .75rem; font-weight: 700; letter-spacing: .08em; }
   /* Logo : moitié de la largeur de la colonne, plafonné à 85px sur grand écran
      (la colonne y dépasse 280px), calé à gauche. */
   /* Logo centré, plafonné à 85px. */
