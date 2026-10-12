@@ -18,6 +18,7 @@
 //     { type:'sabotShuffle', payload:{} }                         mélange le sabot en cours de partie
 //     { type:'handOrder', payload:{ cardIds:[...] } }             ordre de sa propre main (gauche → droite)
 //     { type:'seatMove',  payload:{ x, y } }                       place de son avatar autour de la table
+//     { type:'perf',      payload:{ level:'high'|'low' } }         niveau de performance (relais des gestes en cours)
 //     { type:'abandon',   payload:{ policy:'table'|'sabot' } }     quitte la partie
 //     { type:'dragEnd',   payload:{} }                              drop annulé (efface le live)
 //     { type:'transfer',  payload:{ cardId, target, x, y, ownerId } }  change de zone
@@ -226,6 +227,11 @@ export function createWsClient(opts = {}) {
     // sur le pourtour des sièges et la diffuse.
     sendSeatMove(x, y) {
       return send({ type: 'seatMove', payload: { x, y } })
+    },
+    // Niveau de performance : en « low », le serveur ne relaie plus à ce client
+    // les gestes en cours des autres joueurs.
+    sendPerf(level) {
+      return send({ type: 'perf', payload: { level } })
     },
     sendSabotShuffle() {
       return send({ type: 'sabotShuffle', payload: {} })

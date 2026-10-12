@@ -91,6 +91,10 @@ type payloadTransferMany struct {
 	OwnerID string   `json:"ownerId,omitempty"`
 }
 
+type payloadPerf struct {
+	Level string `json:"level"` // "high" | "low"
+}
+
 type payloadSeatMove struct {
 	X float64 `json:"x"`
 	Y float64 `json:"y"`
@@ -101,6 +105,16 @@ type payloadChat struct {
 }
 
 // ---- Diffusion ------------------------------------------------------------
+
+// broadcastLiveMsg relaie un geste en cours aux seuls joueurs en performance
+// haute (cf. hub.broadcastLive).
+func (app *application) broadcastLiveMsg(room string, msg Message, except *client) {
+	data, err := json.Marshal(msg)
+	if err != nil {
+		return
+	}
+	app.hub.broadcastLive(room, data, except)
+}
 
 // broadcastMsg sérialise un Message et le diffuse à toute la room (sauf except).
 func (app *application) broadcastMsg(room string, msg Message, except *client) {
@@ -297,8 +311,9 @@ func (app *application) handleClientMsg(c *client, room string, m Message) {
 
 	case "drag":
 		// Drag en cours (flux live, pour la fluidité inter-clients). On ne
-		// verrouille pas l'état : on relaie juste la position aux autres.
-		app.broadcastMsg(room, m, c)
+		// verrouille pas l'état : on relaie juste la position aux autres —
+		// à ceux qui ont choisi la performance haute.
+		app.broadcastLiveMsg(room, m, c)
 
 	// --- Opérations par lot (sélection multiple) ---------------------------
 	case "moveMany":
@@ -345,14 +360,14 @@ func (app *application) handleClientMsg(c *client, room string, m Message) {
 
 	case "dragMany":
 		// Drag groupé en cours : simple relais live aux autres, comme "drag".
-		app.broadcastMsg(room, m, c)
+		app.broadcastLiveMsg(room, m, c)
 
 	case "dragEnd":
 		// Drop annulé (relâché hors de toute cible) : rien n'a changé côté
 		// moteur, donc aucune diffusion d'état ne viendra corriger les
 		// positions live que les autres clients suivaient. Ce relais leur
 		// demande d'effacer ces positions et de revenir à l'état serveur.
-		app.broadcastMsg(room, m, c)
+		app.broadcastLiveMsg(room, m, c) // seuls les clients qui suivent le geste en ont besoin
 
 	case "transferMany":
 		// Transfert groupé vers une même cible (sabot / avatar / main). Un
@@ -463,6 +478,16 @@ func (app *application) handleClientMsg(c *client, room string, m Message) {
 		if ok {
 			app.sendHand(room, c.userID)
 		}
+
+	// --- Niveau de performance du joueur ------------------------------------
+	case "perf":
+		// "low" : ne plus recevoir les gestes en cours des autres. Tout autre
+		// valeur rétablit la performance haute (comportement par défaut).
+		var p payloadPerf
+		if err := json.Unmarshal(m.Payload, &p); err != nil {
+			return
+		}
+		c.lowPerf.Store(p.Level == "low")
 
 	// --- Place de son avatar autour de la table ----------------------------
 	case "seatMove":

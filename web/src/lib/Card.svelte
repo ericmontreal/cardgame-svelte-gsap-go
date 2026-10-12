@@ -9,6 +9,7 @@
   // les transmet au serveur autoritaire. Aucune logique de jeu ici.
   import { createEventDispatcher, onMount, afterUpdate } from 'svelte'
   import { gsap } from 'gsap'
+  import { lowPerf } from './store.js'
 
   // `c` : carte (état serveur). `zone` : 'table' | 'hand' (comportement drop).
   export let c = { id: '', faceId: '1_club', faceUp: true, x: 0, y: 0, z: 0, rotate: 0 }
@@ -54,11 +55,16 @@
   afterUpdate(() => {
     setBoth()
     if (c.faceUp !== lastFaceUp && rootEl) {
-      gsap.fromTo(
-        rootEl,
-        { rotateY: lastFaceUp ? 0 : 180 },
-        { rotateY: c.faceUp ? 0 : 180, duration: 0.35, ease: 'power2.out' }
-      )
+      if (lowPerf()) {
+        // Performance basse : retournement instantané, même état final.
+        gsap.set(rootEl, { rotateY: c.faceUp ? 0 : 180 })
+      } else {
+        gsap.fromTo(
+          rootEl,
+          { rotateY: lastFaceUp ? 0 : 180 },
+          { rotateY: c.faceUp ? 0 : 180, duration: 0.35, ease: 'power2.out' }
+        )
+      }
       lastFaceUp = c.faceUp
     }
     // La position serveur (c.x/c.y) vient d'être confirmée après un drop :

@@ -1,7 +1,7 @@
 <script>
   // Zone chat (§9) : communication temps réel entre joueurs connectés. Messages
   // diffusés à tous les participants de la session. Pas de persistance.
-  import { chatLog, loadChatHidden, saveChatHidden } from './store.js'
+  import { chatLog, loadChatHidden, saveChatHidden, lowPerf } from './store.js'
   import { afterUpdate, onMount } from 'svelte'
   import { gsap } from 'gsap'
 
@@ -39,6 +39,7 @@
   // Un joueur ayant demandé moins d'animations est servi sans glissement : le
   // repli reste instantané, la fonction demeure entière.
   function prefersReducedMotion() {
+    if (lowPerf()) return true // performance basse : repli instantané
     return typeof window !== 'undefined'
       && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
   }
