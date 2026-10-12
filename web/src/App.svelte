@@ -432,7 +432,9 @@
                320px, fond transparent), à la place de l'icône et du titre. -->
           <div class="brand">
             <img class="brand-logo" src="/logo-cest-vert.webp" alt="C'est vert !" />
-            <span class="credits">Par Éric, David et Claude :)</span>
+            <!-- Trois lignes en habillage le long du cercle extérieur du logo
+                 (shape-outside) : chaque ligne commence au bord du disque. -->
+            <span class="credits"><span>Par Éric</span><span>David</span><span>et Claude</span></span>
           </div>
           <!-- Nom et statut sur une même ligne ; le statut passe dessous si
                le nom est trop long pour la colonne. -->
@@ -558,10 +560,27 @@
   }
   /* Logo : moitié de la largeur de la colonne, plafonné à 85px sur grand écran
      (la colonne y dépasse 280px), calé à gauche. */
-  .brand { display: flex; align-items: center; gap: .45rem; margin-bottom: .3rem; }
-  .brand-logo { display: block; flex: none; width: 50%; max-width: 85px; height: auto; }
-  /* Mention des auteurs, en tout petit à droite du logo. */
-  .credits { font-size: .62rem; line-height: 1.3; opacity: .7; font-style: italic; }
+  /* Logo flottant à gauche, contour d'habillage circulaire : le texte qui le
+     suit épouse son cercle extérieur au lieu d'un bord droit. */
+  .brand { margin-bottom: .3rem; }
+  .brand::after { content: ''; display: block; clear: both; }
+  /* Cercle d'habillage calé sur l'image (content-box) ; la marge droite donne
+     de la place à shape-margin, que le navigateur coupe à la boîte de marge
+     du flottant. */
+  .brand-logo {
+    float: left; width: 50%; max-width: 85px; height: auto; margin-right: 8px;
+    shape-outside: circle(50%) content-box; shape-margin: 6px;
+  }
+  /* Mention des auteurs, en tout petit, sur trois lignes basses (12px) posées
+     près du haut, au milieu et près du bas du disque. Le navigateur écarte
+     chaque ligne du point le plus large du cercle sur sa propre hauteur : des
+     lignes hautes montaient jusqu'au centre et restaient toutes alignées. Ici
+     la première et la dernière se rapprochent du logo (~10px), celle du
+     milieu s'en écarte, et la courbe se lit. */
+  .credits { display: block; font-size: .62rem; opacity: .7; font-style: italic; }
+  .credits span { display: block; line-height: 12px; }
+  .credits span:first-child { margin-top: 2px; }
+  .credits span + span { margin-top: 20px; }
   .me { color: #ffd27a; font-weight: 700; overflow-wrap: anywhere; }
   .who { display: flex; flex-wrap: wrap; align-items: baseline; gap: .1rem .5rem; }
   .status { font-size: .78rem; opacity: .85; white-space: nowrap; }
