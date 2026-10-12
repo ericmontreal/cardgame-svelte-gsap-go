@@ -13,7 +13,7 @@
   import { createWsClient } from './lib/ws-client.js'
   import { reloadIfNewVersion } from './lib/version.js'
   import { ensureInlineSprite } from './lib/svg-sprite.js'
-  import { fitScale, sidebarWidth, CARD_W, CARD_H } from './lib/geometry.js'
+  import { fitScale, sidebarWidth, tableStretch, CARD_W, CARD_H } from './lib/geometry.js'
 
   import Login from './lib/Login.svelte'
   import InitMenu from './lib/InitMenu.svelte'
@@ -348,6 +348,9 @@
   // largeur du contenu, qui ne se comprime pas pendant le repli : il glisse).
   $: sideOpenW = sidebarWidth(scale)
   $: sideW = sidebarWidth(scale, sideFold)
+  // Tapis élargi à l'horizontale pour occuper toute la cellule quand la
+  // hauteur limite l'échelle (geometry.js, tableStretch).
+  $: tableStretchK = tableStretch(playW - sideW, scale)
   onDestroy(() => playObserver?.disconnect())
   // Cartes de la main à la taille des cartes du tapis, telles qu'affichées.
   $: handCardW = Math.round(CARD_W * scale)
@@ -520,6 +523,7 @@
         <div class="table-cell" bind:this={tableCellEl}>
         <Table
           {scale}
+          stretch={tableStretchK}
           table={st.table}
           players={st.players}
           sabotCount={st.sabotCount}

@@ -56,3 +56,24 @@ describe('placeSeat', () => {
     expect(720 - p.x).toBeLessThan(SEAT_GAP + 3)
   })
 })
+
+describe('étirement horizontal du tapis', () => {
+  it("vaut 1 quand la largeur limite déjà l'échelle, et plafonne", async () => {
+    const { tableStretch, MAX_STRETCH } = await import('./geometry.js')
+    expect(tableStretch(TABLE_W * 0.6 + 12, 0.6)).toBe(1)
+    expect(tableStretch(TABLE_W * 0.6 * 1.3 + 12, 0.6)).toBeCloseTo(1.3, 2)
+    expect(tableStretch(10000, 0.5)).toBe(MAX_STRETCH)
+  })
+  it('garde bords du feutre, sabot centré et aller-retour exact', async () => {
+    const { stretchMap, CARD_W } = await import('./geometry.js')
+    const m = stretchMap(1.4), F = FELT_INSET
+    expect(m.cardX(F)).toBeCloseTo(F)
+    expect(m.cardX(TABLE_W - F - CARD_W)).toBeCloseTo(m.width - F - CARD_W)
+    expect(m.cardX((TABLE_W - CARD_W) / 2)).toBeCloseTo((m.width - CARD_W) / 2)
+    expect(m.seatX(TABLE_W - F)).toBeCloseTo(m.width - F)
+    for (const x of [F, 300, 777.5, 1200]) {
+      expect(m.cardXBack(m.cardX(x))).toBeCloseTo(x)
+      expect(m.seatXBack(m.seatX(x))).toBeCloseTo(x)
+    }
+  })
+})

@@ -84,6 +84,7 @@
   let originX = 0, originY = 0    // position initiale de la carte (transform)
   let curX = 0, curY = 0          // dernière position suivie (centre carte) pendant le drag
   let dragScale = 1               // échelle du tapis au début du drag (cf. onPointerDown)
+  let dragKc = 1                  // étirement horizontal du tapis (data-kc, Table.svelte)
 
   function onPointerDown(e) {
     if (!draggable) return
@@ -101,6 +102,9 @@
     // pixels d'écran, la carte en pixels du tapis non réduit. Une carte en
     // main n'a pas d'ancêtre réduit : échelle 1.
     dragScale = Number(rootEl?.closest('[data-scale]')?.dataset.scale) || 1
+    // Tapis étiré à l'horizontale : un pixel affiché n'y vaut que 1/kc pixel
+    // du repère partagé, dans lequel la position est transmise.
+    dragKc = Number(rootEl?.closest('[data-kc]')?.dataset.kc) || 1
     // Capturer dès pointerdown (et pas seulement après le seuil de 3px, cf.
     // onPointerMove) : sinon un mouvement rapide/ample peut sortir le
     // curseur de la petite carte avant que la capture ne s'engage, et les
@@ -122,7 +126,7 @@
     const dx = (e.clientX - startX) / dragScale
     const dy = (e.clientY - startY) / dragScale
     if (!moved) return
-    const nx = originX + dx
+    const nx = originX + dx / dragKc
     const ny = originY + dy
     curX = nx
     curY = ny

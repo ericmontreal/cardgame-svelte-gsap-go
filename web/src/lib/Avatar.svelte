@@ -17,6 +17,10 @@
   // aspect, mais la taille dit désormais vraiment ce qu'occupe le cercle, et
   // l'ancrage sur son centre tombe juste (le liseré décalait tout de 3px).
   export let size = 70
+  // Conversions repère partagé ↔ affichage étiré du tapis, pour le centre de
+  // l'avatar (geometry.js, stretchMap). Identité si le tapis n'est pas étiré.
+  export let seatX = (x) => x
+  export let seatXBack = (v) => v
 
   const dispatch = createEventDispatcher()
 
@@ -77,7 +81,7 @@
     if (!table) return null
     const r = table.getBoundingClientRect()
     const s = Number(table.dataset.scale) || 1
-    const p = placeSeat((e.clientX - r.left) / s, (e.clientY - r.top) / s, others)
+    const p = placeSeat(seatXBack((e.clientX - r.left) / s), (e.clientY - r.top) / s, others)
     return { x: p.x, y: p.y }
   }
   function onPointerDown(e) {
@@ -134,7 +138,7 @@
   bind:this={rootEl}
   {...(player.abandoned ? {} : { 'data-drop': 'avatar' })}
   data-owner={player.userId}
-  style="--size:{size}px; --hue:{hue}; left:{pos.x}px; top:{pos.y}px;"
+  style="--size:{size}px; --hue:{hue}; left:{seatX(pos.x)}px; top:{pos.y}px;"
   title={player.abandoned
     ? `${player.name} a quitté la partie`
     : movable

@@ -8,7 +8,7 @@
   import Avatar from './Avatar.svelte'
   import { dropAt, TARGETS } from './drag.js'
   import { liveDrag } from './store.js'
-  import { TABLE_W, TABLE_H, FELT_INSET, CARD_W, CARD_H, SEAT_BAND } from './geometry.js'
+  import { TABLE_W, TABLE_H, FELT_INSET, CARD_W, CARD_H, SEAT_BAND, stretchMap } from './geometry.js'
 
   export let table = []          // cartes publiques (zone table)
   export let players = []        // joueurs connectés
@@ -43,15 +43,27 @@
   // celles du tapis, et sa hauteur dépend donc de l'échelle. Le tapis ne peut
   // pas mesurer seul la place qui lui reste sans entrer en boucle avec elle.
   export let scale = 1
+  // Élargissement horizontal de l'affichage (geometry.js, tableStretch) :
+  // `sm` convertit entre le repère partagé et l'affichage étiré. Tout ce qui
+  // est échangé ou calculé (serveur, sélection, aimantage) reste dans le
+  // repère partagé ; seuls le rendu et les conversions écran → tapis passent
+  // par `sm`.
+  export let stretch = 1
+  $: sm = stretchMap(stretch)
   // Le rect du tapis change avec l'échelle : le relire après le rendu.
-  $: scale, tick().then(refreshRect)
+  $: scale, stretch, tick().then(refreshRect)
 
   function refreshRect() {
     if (tableEl) tableRect = tableEl.getBoundingClientRect()
   }
-  // Coordonnées écran -> repère du tapis (non réduit).
-  function toTable(clientX, clientY) {
+  // Coordonnées écran -> affichage du tapis (non réduit, mais étiré).
+  function toView(clientX, clientY) {
     return { x: (clientX - tableRect.left) / scale, y: (clientY - tableRect.top) / scale }
+  }
+  // Coin de carte à l'écran -> repère partagé.
+  function toTable(clientX, clientY) {
+    const v = toView(clientX, clientY)
+    return { x: sm.cardXBack(v.x), y: v.y }
   }
   onMount(() => {
     refreshRect()
@@ -225,14 +237,16 @@
     const t = e.target
     if (t !== tableEl && !(t.classList && t.classList.contains('felt'))) return
     refreshRect()
-    const { x, y } = toTable(e.clientX, e.clientY)
+    // Le rectangle se trace dans l'affichage (étiré) : c'est ce que voit le
+    // joueur, et ce que l'on compare aux cartes telles qu'affichées.
+    const { x, y } = toView(e.clientX, e.clientY)
     marquee = { x0: x, y0: y, x1: x, y1: y }
     marqueeBase = e.shiftKey ? new Set(selected) : new Set()
     tableEl.setPointerCapture(e.pointerId)
   }
   function onTablePointerMove(e) {
     if (!marquee) return
-    const p = toTable(e.clientX, e.clientY)
+    const p = toView(e.clientX, e.clientY)
     marquee = { ...marquee, x1: p.x, y1: p.y }
     const xa = Math.min(marquee.x0, marquee.x1), xb = Math.max(marquee.x0, marquee.x1)
     const ya = Math.min(marquee.y0, marquee.y1), yb = Math.max(marquee.y0, marquee.y1)
@@ -243,7 +257,8 @@
     // commentaire précédent affirmait le contraire.
     const next = new Set(marqueeBase)
     for (const c of table) {
-      if (c.x >= xa && c.x <= xb && c.y >= ya && c.y <= yb) next.add(c.id)
+      const vx = sm.cardX(c.x)
+      if (vx >= xa && vx <= xb && c.y >= ya && c.y <= yb) next.add(c.id)
     }
     selected = next
   }
@@ -309,7 +324,7 @@
       case TARGETS.TABLE: {
         // Pose/replace sur le tapis à la position suivie pendant le drag,
         // aimantée contre une carte voisine si suffisamment proche.
-        const pos = trackedPos ?? hit
+        const pos = trackedPos ?? { x: sm.cardXBack(hit.x), y: hit.y }
         const snapped = snapPosition(pos.x, pos.y, cardId)
         dispatch('move', { cardId, x: snapped.x, y: snapped.y })
         return true
@@ -378,7 +393,7 @@
     }
     switch (hit.target) {
       case TARGETS.TABLE: {
-        const pos = trackedPos ?? hit
+        const pos = trackedPos ?? { x: sm.cardXBack(hit.x), y: hit.y }
         const snapped = snapPosition(pos.x, pos.y, selected)
         const items = groupItems(anchorId, snapped.x, snapped.y)
         if (!items) {
@@ -460,7 +475,7 @@
         // c'est bien un coin qu'attend le rendu, cf. `.card-anchor` plus bas.
         const pos = (tableRect && ghostX != null)
           ? toTable(ghostX, ghostY)
-          : hit
+          : { x: sm.cardXBack(hit.x), y: hit.y }
         const snapped = snapPosition(pos.x, pos.y, null)
         dispatch('sabotDraw', { target: TARGETS.TABLE, x: snapped.x, y: snapped.y })
         break
@@ -494,14 +509,15 @@
        défilement. -->
   <!-- Bandes de SEAT_BAND au-dessus et au-dessous de la table : les sièges des
        grands côtés s'y assoient, en retrait du tapis. -->
-  <div class="table-fit" style="width:{TABLE_W * scale}px; height:{(TABLE_H + 2 * SEAT_BAND) * scale}px;">
+  <div class="table-fit" style="width:{sm.width * scale}px; height:{(TABLE_H + 2 * SEAT_BAND) * scale}px;">
   <!-- svelte-ignore a11y-no-static-element-interactions -->
   <div
     bind:this={tableEl}
     class="table"
     data-drop="table"
     data-scale={scale}
-    style="top:{SEAT_BAND * scale}px; transform: scale({scale});"
+    data-kc={sm.kc}
+    style="top:{SEAT_BAND * scale}px; width:{sm.width}px; transform: scale({scale});"
     on:pointerdown={onTablePointerDown}
     on:pointermove={onTablePointerMove}
     on:pointerup={onTablePointerUp}
@@ -522,7 +538,7 @@
       count={sabotCount}
       top={sabotTop}
       stack={sabotStack}
-      x={SABOT_POS.x}
+      x={sm.cardX(SABOT_POS.x)}
       y={SABOT_POS.y}
       cardW={CARD_W}
       cardH={CARD_H}
@@ -538,6 +554,8 @@
         player={p}
         isMe={p.userId === myUserId}
         movable={p.userId === myUserId && !p.abandoned}
+        seatX={sm.seatX}
+        seatXBack={sm.seatXBack}
         others={p.userId === myUserId ? players.filter((o) => o.userId !== myUserId).map((o) => ({ x: o.ax, y: o.ay })) : []}
         on:seat={(e) => dispatch('seatMove', e.detail)}
       />
@@ -545,7 +563,7 @@
 
     <!-- Cartes sur la table -->
     {#each table as card (card.id)}
-      <div class="card-anchor" style="left:{posById[card.id].x}px; top:{posById[card.id].y}px; z-index:{card.z || 1};">
+      <div class="card-anchor" style="left:{sm.cardX(posById[card.id].x)}px; top:{posById[card.id].y}px; z-index:{card.z || 1};">
         <Card
           c={card}
           zone="table"
@@ -618,7 +636,7 @@
   .table {
     position: absolute;
     left: 0; top: 0;
-    width: 1440px; /* = TABLE_W */
+    width: 1440px; /* = TABLE_W ; élargi en ligne quand le tapis s'étire */
     height: 800px; /* = TABLE_H */
     transform-origin: 0 0;
     /* pourtour "bois" : les avatars (assis autour, sur des chaises) reposent

@@ -130,3 +130,42 @@ export function fitScale(width, height, pad = 12, fold = 0) {
   const s = Math.min(1, byWidth, byHeight)
   return Math.max(MIN_SCALE, Math.round(s * 1000) / 1000)
 }
+
+// ---- Étirement horizontal du tapis ------------------------------------------
+// Quand la HAUTEUR limite l'échelle (panneaux repliés, écran large et peu haut,
+// tablette Android sous la barre du navigateur), il reste de la place de part
+// et d'autre du tapis. Plutôt que de la laisser vide, le tapis s'élargit pour
+// que les avatars des côtés frôlent les volets, comme ceux du haut et du bas.
+//
+// Le repère partagé avec le serveur reste TABLE_W × TABLE_H : chaque client
+// étire seulement l'AFFICHAGE, à l'horizontale. Les cartes gardent leur taille ;
+// leurs positions s'écartent. Le bois garde son épaisseur, les bords du feutre
+// restent les bords du feutre et le sabot reste au centre :
+//   - coin d'une carte : [F, TABLE_W−F−CARD_W] ↦ [F, W−F−CARD_W]
+//   - centre d'un avatar (sur le bord du feutre) : [F, TABLE_W−F] ↦ [F, W−F]
+export const MAX_STRETCH = 1.8
+
+// tableStretch : facteur d'élargissement (≥ 1) pour une cellule de
+// cellWidth pixels d'écran, le tapis étant affiché à l'échelle `scale`.
+export function tableStretch(cellWidth, scale, pad = 12) {
+  if (!cellWidth || !scale) return 1
+  const k = (cellWidth - pad) / (TABLE_W * scale)
+  return Math.min(MAX_STRETCH, Math.max(1, Math.floor(k * 1000) / 1000))
+}
+
+// stretchMap : conversions repère partagé ↔ affichage étiré (en pixels du
+// tapis non réduit), pour un facteur `stretch`.
+export function stretchMap(stretch = 1) {
+  const F = FELT_INSET
+  const width = TABLE_W * stretch
+  const kc = (width - 2 * F - CARD_W) / (TABLE_W - 2 * F - CARD_W)
+  const ks = (width - 2 * F) / (TABLE_W - 2 * F)
+  return {
+    width,
+    kc, // pixels affichés par pixel du repère, pour les cartes
+    cardX: (x) => F + (x - F) * kc,
+    cardXBack: (v) => F + (v - F) / kc,
+    seatX: (x) => F + (x - F) * ks,
+    seatXBack: (v) => F + (v - F) / ks,
+  }
+}
