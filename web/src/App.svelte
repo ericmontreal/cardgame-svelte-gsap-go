@@ -432,12 +432,12 @@
                320px, fond transparent), à la place de l'icône et du titre. -->
           <div class="brand">
             <img class="brand-logo" src="/logo-cest-vert.webp" alt="C'est vert !" />
-            <!-- Auteurs et licences, sous le logo, alignés à gauche. Liens dans
-                 un nouvel onglet : la partie en cours reste ouverte. -->
+            <!-- Crédits à droite du logo, une ligne chacun. Lien dans un nouvel
+                 onglet : la partie en cours reste ouverte. -->
             <p class="credits">
-              Jeu familial en ligne par Eric, Lucie et Claude.<br />
-              <a href="https://www.gnu.org/licenses/agpl-3.0.fr.html" target="_blank" rel="noopener noreferrer">Sous licence</a> AGPL v3.<br />
-              Motifs des cartes par <a href="https://svg-cards.sourceforge.net/" target="_blank" rel="noopener noreferrer">D. Bellot</a>, sous licence LGPL.
+              <span>Jeu familial</span>
+              <span>par Eric et Claude</span>
+              <span>Motifs <a href="https://svg-cards.sourceforge.net/" target="_blank" rel="noopener noreferrer">D. Bellot</a></span>
             </p>
           </div>
           <!-- Nom et statut sur une même ligne ; le statut passe dessous si
@@ -564,11 +564,13 @@
   }
   /* Logo : moitié de la largeur de la colonne, plafonné à 85px sur grand écran
      (la colonne y dépasse 280px), calé à gauche. */
-  .brand { margin-bottom: .3rem; }
-  /* Logo : moitié de la largeur de la colonne, plafonné à 85px, calé à gauche. */
-  .brand-logo { display: block; width: 50%; max-width: 85px; height: auto; }
-  /* Auteurs et licences, en tout petit sous le logo, alignés à gauche. */
-  .credits { margin: .35rem 0 0; font-size: .62rem; line-height: 1.35; opacity: .75; text-align: left; }
+  /* Logo à gauche, crédits à sa droite, centrés sur sa hauteur. */
+  .brand { display: flex; align-items: center; gap: .4rem; margin-bottom: .3rem; }
+  /* Logo : moitié de la largeur de la colonne, plafonné à 85px. */
+  .brand-logo { display: block; flex: none; width: 50%; max-width: 85px; height: auto; }
+  /* Crédits en tout petit, alignés à gauche, une ligne chacun. */
+  .credits { margin: 0; min-width: 0; font-size: .6rem; line-height: 1.4; opacity: .75; text-align: left; }
+  .credits span { display: block; white-space: nowrap; }
   .credits a { color: #ffd27a; text-decoration: underline; text-underline-offset: 2px; }
   .me { color: #ffd27a; font-weight: 700; overflow-wrap: anywhere; }
   .who { display: flex; flex-wrap: wrap; align-items: baseline; gap: .1rem .5rem; }
