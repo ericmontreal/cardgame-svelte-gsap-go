@@ -435,9 +435,11 @@
             <!-- Crédits à droite du logo, une ligne chacun. Lien dans un nouvel
                  onglet : la partie en cours reste ouverte. -->
             <p class="credits">
+              <!-- Espaces insécables : si la place manque, la coupure tombe
+                   entre deux noms, jamais au milieu d'un nom. -->
               <span>Jeu familial</span>
-              <span>par Eric et Claude</span>
-              <span>Motifs <a href="https://svg-cards.sourceforge.net/" target="_blank" rel="noopener noreferrer">D. Bellot</a></span>
+              <span>par&nbsp;Eric et&nbsp;Claude</span>
+              <span>Motifs <a href="https://svg-cards.sourceforge.net/" target="_blank" rel="noopener noreferrer">D.&nbsp;Bellot</a></span>
             </p>
           </div>
           <!-- Nom et statut sur une même ligne ; le statut passe dessous si
@@ -568,9 +570,13 @@
   .brand { display: flex; align-items: center; gap: .4rem; margin-bottom: .3rem; }
   /* Logo : moitié de la largeur de la colonne, plafonné à 85px. */
   .brand-logo { display: block; flex: none; width: 50%; max-width: 85px; height: auto; }
-  /* Crédits en tout petit, alignés à gauche, une ligne chacun. */
-  .credits { margin: 0; min-width: 0; font-size: .6rem; line-height: 1.4; opacity: .75; text-align: left; }
-  .credits span { display: block; white-space: nowrap; }
+  /* Crédits en tout petit, alignés à gauche, une ligne chacun quand la place
+     le permet. Le retour à la ligne reste autorisé : avec une police de base
+     agrandie dans le navigateur (réglage ou zoom), une ligne interdite de
+     coupure débordait de la colonne et était tronquée (« par Eric et Claud »). */
+  .credits { margin: 0; min-width: 0; font-size: .6rem; line-height: 1.3; opacity: .75; text-align: left; }
+  .credits span { display: block; }
+  .credits span + span { margin-top: .1em; }
   .credits a { color: #ffd27a; text-decoration: underline; text-underline-offset: 2px; }
   .me { color: #ffd27a; font-weight: 700; overflow-wrap: anywhere; }
   .who { display: flex; flex-wrap: wrap; align-items: baseline; gap: .1rem .5rem; }
