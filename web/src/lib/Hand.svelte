@@ -128,6 +128,7 @@
     width: 100%;
     text-align: center;
   }
-  .fan { display: flex; gap: 8px; align-items: flex-end; }
+  /* Cartes juxtaposées, bord à bord, sans intervalle. */
+  .fan { display: flex; gap: 0; align-items: flex-end; }
   .hand-card { position: relative; }
 </style>
