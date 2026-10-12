@@ -438,7 +438,7 @@
               <!-- Espaces insécables : si la place manque, la coupure tombe
                    entre deux noms, jamais au milieu d'un nom. -->
               <span>Jeu familial</span>
-              <span>par&nbsp;Eric et&nbsp;Claude</span>
+              <span>par&nbsp;Eric, Lucie et&nbsp;Claude</span>
               <span>Motifs <a href="https://svg-cards.sourceforge.net/" target="_blank" rel="noopener noreferrer">D.&nbsp;Bellot</a></span>
             </p>
           </div>
