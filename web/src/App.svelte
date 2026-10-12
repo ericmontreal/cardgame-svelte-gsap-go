@@ -313,6 +313,10 @@
 
   // État réactif partagé (tableState + myHand) pour les sous-composants.
   $: st = $tableState
+  // Autres joueurs connectés (colonne de gauche), hors ceux qui ont quitté.
+  $: others = (st.players ?? [])
+    .filter((p) => p.userId !== session?.id && !p.abandoned)
+    .sort((a, b) => a.name.localeCompare(b.name, 'fr'))
   $: hand = $myHand
 </script>
 
@@ -448,6 +452,17 @@
             <span class="me" title="Connecté en tant que {session.name}">{session.name}</span>
             <span class="status" data-s={$wsStatus}>● {statusLabel}</span>
           </div>
+          <!-- Autres joueurs connectés, par ordre alphabétique. Ceux qui ont
+               quitté la partie (chaise grisée sur le tapis) n'y figurent pas ;
+               un joueur momentanément déconnecté disparaît de la liste du
+               serveur, donc d'ici aussi. -->
+          {#if others.length}
+            <ul class="others" aria-label="Autres joueurs connectés">
+              {#each others as p (p.userId)}
+                <li title={p.name}>{p.name}</li>
+              {/each}
+            </ul>
+          {/if}
           <!-- Boutons repoussés en bas de la colonne (margin-top: auto). -->
           <button class="newgame" on:click={askNewGame}>Nouvelle partie</button>
           <button class="logout" on:click={askLeave}>Quitter la partie</button>
@@ -583,6 +598,9 @@
   .who { display: flex; flex-wrap: wrap; align-items: baseline; gap: .1rem .5rem; }
   .status { font-size: .78rem; opacity: .85; white-space: nowrap; }
   .newgame { margin-top: auto; }
+  .others { list-style: none; margin: .1rem 0 0; padding: 0; display: flex; flex-direction: column; gap: .15rem; }
+  .others li { font-size: .8rem; color: #dfe; overflow-wrap: anywhere; }
+  .others li::before { content: '●'; color: #6fe39a; font-size: .7em; margin-right: .4em; vertical-align: .1em; }
   .status[data-s="open"] { color: #6fe39a; }
   .status[data-s="connecting"], .status[data-s="reconnecting"] { color: #ffd27a; }
   .status[data-s="closed"], .status[data-s="error"], .status[data-s="idle"] { color: #ff9a9a; }
