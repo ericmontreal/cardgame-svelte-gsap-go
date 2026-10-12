@@ -69,8 +69,30 @@
       // Le niveau de performance vit dans la connexion côté serveur : on le
       // redonne à chaque ouverture, reconnexions comprises.
       if (s === 'open') ws?.sendPerf($perfLevel)
+      // Connexion perdue : le serveur a peut-être redémarré, ce qui efface
+      // toutes les sessions. Sans ce contrôle, l'onglet retentait sa
+      // connexion indéfiniment avec un jeton mort, en affichant toujours la
+      // table : le joueur ne recevait plus rien sans le savoir (constaté le
+      // 2026-10-12, 13 minutes de « reconnexion… » après une mise en ligne).
+      if (s === 'reconnecting') checkSessionWhileReconnecting()
     })
     ws.connect()
+  }
+
+  let checkingSession = false
+  async function checkSessionWhileReconnecting() {
+    if (checkingSession || !session) return
+    checkingSession = true
+    try {
+      // isSessionValid renvoie vrai si le serveur est injoignable : la
+      // reconnexion automatique reste alors la bonne réponse.
+      if (!(await isSessionValid(session.token))) {
+        logout()
+        errorMsg = 'Votre session a expiré (le serveur a redémarré). Reconnectez-vous.'
+      }
+    } finally {
+      checkingSession = false
+    }
   }
 
   function disconnectWs() {
