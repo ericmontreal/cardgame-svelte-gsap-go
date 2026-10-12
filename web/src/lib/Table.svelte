@@ -8,7 +8,7 @@
   import Avatar from './Avatar.svelte'
   import { dropAt, TARGETS } from './drag.js'
   import { liveDrag } from './store.js'
-  import { TABLE_W, TABLE_H, FELT_INSET, CARD_W, CARD_H } from './geometry.js'
+  import { TABLE_W, TABLE_H, FELT_INSET, CARD_W, CARD_H, SEAT_BAND } from './geometry.js'
 
   export let table = []          // cartes publiques (zone table)
   export let players = []        // joueurs connectés
@@ -490,14 +490,16 @@
        place qu'un élément prend dans la mise en page, sans elle la table
        réduite laisserait derrière elle un vide de 1440×800 et des barres de
        défilement. -->
-  <div class="table-fit" style="width:{TABLE_W * scale}px; height:{TABLE_H * scale}px;">
+  <!-- Bandes de SEAT_BAND au-dessus et au-dessous de la table : les sièges des
+       grands côtés s'y assoient, en retrait du tapis. -->
+  <div class="table-fit" style="width:{TABLE_W * scale}px; height:{(TABLE_H + 2 * SEAT_BAND) * scale}px;">
   <!-- svelte-ignore a11y-no-static-element-interactions -->
   <div
     bind:this={tableEl}
     class="table"
     data-drop="table"
     data-scale={scale}
-    style="transform: scale({scale});"
+    style="top:{SEAT_BAND * scale}px; transform: scale({scale});"
     on:pointerdown={onTablePointerDown}
     on:pointermove={onTablePointerMove}
     on:pointerup={onTablePointerUp}

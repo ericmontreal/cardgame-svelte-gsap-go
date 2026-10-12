@@ -34,6 +34,9 @@ const (
 	minCardY = feltInset
 	maxCardX = tableW - feltInset - cardW
 	maxCardY = tableH - feltInset - cardH
+	// Décalage des sièges des grands côtés au-delà du bord de la table
+	// (cf. layoutAvatar ; tient dans SEAT_BAND côté client).
+	seatOutset = 10.0
 	// Chevauchement d'une main étalée à l'abandon (même valeur que le bouton
 	// « Étaler » côté client).
 	abandonSpacing = 30.0

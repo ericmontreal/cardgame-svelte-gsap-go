@@ -165,6 +165,14 @@ func (e *engine) layoutAvatar(p *Player, index int, w, h float64) {
 	a := float64(index%seats)*(2*math.Pi/seats) + math.Pi/2
 	p.AX = cx + rx*math.Cos(a)
 	p.AY = cy + ry*math.Sin(a)
+	// Sièges des grands côtés (sud et nord) : en retrait de la table, centrés
+	// à seatOutset au-delà de son bord. L'avatar chevauche alors le bord bois et
+	// son nom sort de la table, dans la bande que le client réserve au-dessus
+	// et au-dessous du tapis (SEAT_BAND, web/src/lib/geometry.js). Les sièges
+	// des petits côtés, eux, ne bougent pas.
+	if s := math.Sin(a); math.Abs(s) > 0.99 {
+		p.AY = cy + math.Copysign(h/2+seatOutset, s)
+	}
 }
 
 // removePlayer retire le joueur de la liste des connectés. Son siège reste

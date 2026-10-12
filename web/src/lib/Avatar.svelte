@@ -33,6 +33,9 @@
   // l'intérieur du tapis.
   const EDGE = 140
   $: side = player.ax < EDGE ? 'left' : player.ax > TABLE_W - EDGE ? 'right' : ''
+  // Siège du grand côté nord, posé par le serveur au-dessus de la table : le
+  // nom passe au-dessus de l'avatar, qui reste ainsi au contact de la table.
+  $: north = player.ay < 0
 
   // Feedback visuel au survol d'un drag.
   let hovered = false
@@ -53,6 +56,7 @@
   class:abandoned={player.abandoned}
   class:edge-left={side === 'left'}
   class:edge-right={side === 'right'}
+  class:north
   {...(player.abandoned ? {} : { 'data-drop': 'avatar' })}
   data-owner={player.userId}
   style="--size:{size}px; --hue:{hue}; left:{player.ax}px; top:{player.ay}px;"
@@ -88,6 +92,7 @@
   /* Sièges près d'un bord : l'étiquette déborde vers le tapis, pas hors de la
      table (cf. `side` dans le script). */
   .avatar.edge-left { align-items: flex-start; }
+  .avatar.north { flex-direction: column-reverse; }
   .avatar.edge-right { align-items: flex-end; }
   .medal {
     position: relative;

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { fitScale, sidebarWidth, TABLE_W, TABLE_H, CARD_H, HAND_CHROME, MIN_SCALE } from './geometry.js'
+import { fitScale, sidebarWidth, TABLE_W, TABLE_H, CARD_H, HAND_CHROME, MIN_SCALE, SEAT_BAND } from './geometry.js'
 
 describe('fitScale', () => {
   it('ne grossit jamais le tapis', () => {
@@ -10,7 +10,7 @@ describe('fitScale', () => {
     for (const [w, h] of [[1020, 720], [920, 740], [1660, 960], [1200, 1100]]) {
       const s = fitScale(w, h)
       expect(sidebarWidth(s) + TABLE_W * s).toBeLessThanOrEqual(w)
-      expect(TABLE_H * s + CARD_H * s + HAND_CHROME).toBeLessThanOrEqual(h)
+      expect((TABLE_H + 2 * SEAT_BAND) * s + CARD_H * s + HAND_CHROME).toBeLessThanOrEqual(h)
     }
   })
 

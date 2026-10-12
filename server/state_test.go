@@ -1,6 +1,7 @@
 package main
 
 import (
+	"math"
 	"testing"
 )
 
@@ -601,6 +602,22 @@ func TestReorderHandFollowsThePlayersChoice(t *testing.T) {
 	// Rien de valide dans la liste : rien à faire.
 	if e.ReorderHand("u-alice", []string{bobs}) {
 		t.Fatal("une liste sans carte de la main ne doit rien ranger")
+	}
+}
+
+func TestLongSideSeatsSitBackFromTheTable(t *testing.T) {
+	// Siège 0 = sud, siège 3 = nord : en retrait, seatOutset au-delà du bord.
+	// Les sièges des petits côtés restent dans la table.
+	e := newEngine()
+	south, north, side := &Player{}, &Player{}, &Player{}
+	e.layoutAvatar(south, 0, tableW, tableH)
+	e.layoutAvatar(north, 3, tableW, tableH)
+	e.layoutAvatar(side, 1, tableW, tableH)
+	if math.Abs(south.AY-(tableH+seatOutset)) > 0.001 || math.Abs(north.AY+seatOutset) > 0.001 {
+		t.Fatalf("sièges sud/nord attendus à %.0f et %.0f, obtenu %.1f et %.1f", tableH+seatOutset, -seatOutset, south.AY, north.AY)
+	}
+	if side.AY <= 0 || side.AY >= tableH || side.AX <= 0 || side.AX >= tableW {
+		t.Fatalf("un siège de petit côté doit rester dans la table, obtenu (%.1f, %.1f)", side.AX, side.AY)
 	}
 }
 

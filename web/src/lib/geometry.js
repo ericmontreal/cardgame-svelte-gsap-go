@@ -14,6 +14,12 @@ export const FELT_INSET = 40 // pourtour bois
 export const CARD_W = 140
 export const CARD_H = 196
 
+// Bande réservée au-dessus et au-dessous de la table pour les sièges des
+// grands côtés, que le serveur pose en retrait, 10px au-delà du bord
+// (seatOutset, server/handlers.go). Un avatar avec son nom mesure ~101px :
+// centré à 10px du bord, il en dépasse d'au plus ~61px.
+export const SEAT_BAND = 64
+
 // En deçà, les cartes deviennent illisibles : on laisse alors défiler.
 export const MIN_SCALE = 0.45
 
@@ -39,10 +45,10 @@ export function sidebarWidth(scale) {
 // restante — sinon chaque changement d'échelle redimensionnerait la main ou la
 // colonne, qui redimensionneraient le tapis, et ainsi de suite.
 //   largeur : SIDEBAR_CHROME + 2·CARD_W·s + TABLE_W·s + marge <= width
-//   hauteur : TABLE_H·s + CARD_H·s + HAND_CHROME + marge      <= height
+//   hauteur : (TABLE_H + 2·SEAT_BAND)·s + CARD_H·s + HAND_CHROME + marge <= height
 export function fitScale(width, height, pad = 12) {
   const byWidth = (width - SIDEBAR_CHROME - pad) / (TABLE_W + SIDEBAR_CARDS * CARD_W)
-  const byHeight = (height - HAND_CHROME - pad) / (TABLE_H + CARD_H)
+  const byHeight = (height - HAND_CHROME - pad) / (TABLE_H + 2 * SEAT_BAND + CARD_H)
   const s = Math.min(1, byWidth, byHeight)
   return Math.max(MIN_SCALE, Math.round(s * 1000) / 1000)
 }
