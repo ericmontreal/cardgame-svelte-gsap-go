@@ -26,12 +26,6 @@ type client struct {
 	id     string // identifiant technique (logs)
 	userID string // identifiant de l'utilisateur authentifié
 	name   string // nom affiché (avatar, chat)
-	// lowPerf : le joueur a choisi la performance basse (message "perf"). On
-	// ne lui relaie alors plus les gestes en cours des autres (drag, dragMany,
-	// dragEnd) — c'est le flux le plus lourd, et il ne l'affiche pas. Écrit
-	// par la goroutine de lecture de ce client, lu par celles des autres qui
-	// diffusent : d'où l'atomique. Zéro = performance haute.
-	lowPerf atomic.Bool
 }
 
 // nextClientID génère un identifiant unique par incrémentation atomique. On
@@ -96,22 +90,6 @@ func (h *hub) broadcast(room string, data []byte, except *client) {
 				// canal plein : drop (le client rattrapera l'état via la
 				// diffusion complète envoyée à chaque action mutante)
 			}
-		}
-	}
-}
-
-// broadcastLive relaie un geste en cours (positions éphémères) aux seuls
-// clients en performance haute. Même politique que broadcast sinon.
-func (h *hub) broadcastLive(room string, data []byte, except *client) {
-	h.mu.RLock()
-	defer h.mu.RUnlock()
-	for cli := range h.rooms[room] {
-		if cli == except || cli.lowPerf.Load() {
-			continue
-		}
-		select {
-		case cli.send <- data:
-		default:
 		}
 	}
 }

@@ -5,7 +5,6 @@
   //   - bouton « Mélanger » : bat les cartes restées dans le sabot.
   import { createEventDispatcher, onMount } from 'svelte'
   import { gsap } from 'gsap'
-  import { lowPerf } from './store.js'
 
   export let count = 0           // nombre de cartes dans le sabot
   export let x = 40
@@ -50,7 +49,6 @@
     const els = stackEls.filter(Boolean)
     if (els.length === 0) return
     if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return
-    if (lowPerf()) return // performance basse : pas d'animation décorative
     gsap.killTweensOf(els)
     // Les dos empilés s'écartent en deux paquets puis se réentrelacent, deux
     // fois : un battage « à la queue d'aronde » stylisé. À la fin, on rend la

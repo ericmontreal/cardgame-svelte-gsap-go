@@ -214,12 +214,6 @@ légalité d'un coup — il n'y a pas de coup légal.
   cercle y empiète toujours de moitié), diffusée à tous et retrouvée au retour
   d'une absence.
 - **Chat**, statut de connexion, reconnexion automatique avec backoff.
-- **Performance haute ou basse**, au choix de chaque joueur (colonne de
-  gauche, retenu sur l'appareil). Haute : gestes des autres en direct,
-  animations complètes. Basse : ses positions ne sont plus diffusées pendant
-  le geste, le serveur cesse de lui relayer celles des autres, et les
-  animations décoratives sont coupées — allège la tablette et la connexion
-  montante du serveur.
 - **Tablettes** : la table se réduit d'un bloc pour tenir dans la place
   disponible (jamais agrandie). Le jeu se joue **en paysage uniquement** : en
   portrait, un écran tactile affiche « Tournez votre appareil ». Une fenêtre

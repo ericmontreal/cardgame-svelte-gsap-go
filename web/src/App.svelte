@@ -6,7 +6,7 @@
 
   import {
     tableState, myHand, wsStatus,
-    applyState, applyHand, applyChat, liveDrag, sabotShuffle, applySabotShuffled, applyCardsReceived, reorderHand, perfLevel, lowPerf,
+    applyState, applyHand, applyChat, liveDrag, sabotShuffle, applySabotShuffled, applyCardsReceived, reorderHand,
     loadSession, saveSession, clearSession, resetLocal, login, isSessionValid,
   } from './lib/store.js'
   import { createWsClient } from './lib/ws-client.js'
@@ -66,9 +66,6 @@
     unsubMsg = ws.on(handleServerMsg)
     unsubStatus = ws.onStatus((s) => {
       wsStatus.set(s)
-      // Le niveau de performance vit dans la connexion côté serveur : on le
-      // redonne à chaque ouverture, reconnexions comprises.
-      if (s === 'open') ws?.sendPerf($perfLevel)
       // Connexion perdue : le serveur a peut-être redémarré, ce qui efface
       // toutes les sessions. Sans ce contrôle, l'onglet retentait sa
       // connexion indéfiniment avec un jeton mort, en affichant toujours la
@@ -137,16 +134,14 @@
         break
       case 'drag':
         // Drag live d'un autre joueur : positions éphémères (cardId -> {x,y}).
-        // En performance basse, le serveur ne les envoie plus ; un message
-        // arrivé juste avant le changement est ignoré.
-        if (msg.payload && !lowPerf()) {
+        if (msg.payload) {
           liveDrag.set({ [msg.payload.cardId]: { x: msg.payload.x, y: msg.payload.y } })
         }
         break
       case 'dragMany': {
         // Drag groupé live d'un autre joueur (sélection multiple).
         const items = msg.payload?.items
-        if (Array.isArray(items) && !lowPerf()) {
+        if (Array.isArray(items)) {
           const map = {}
           for (const it of items) map[it.cardId] = { x: it.x, y: it.y }
           liveDrag.set(map)
@@ -182,12 +177,10 @@
 
   // ---- Actions de table (remontées des composants) -> serveur ----
   function sendMove(e)    { ws?.sendMove(e.detail.cardId, e.detail.x, e.detail.y) }
-  // Performance basse : les positions pendant le geste ne partent plus ; seul le
-  // résultat (move, transfer…) est envoyé au lâcher.
-  function sendDrag(e)    { if (!lowPerf()) ws?.sendDrag(e.detail.cardId, e.detail.x, e.detail.y) }
+  function sendDrag(e)    { ws?.sendDrag(e.detail.cardId, e.detail.x, e.detail.y) }
   function sendMoveMany(e) { ws?.sendMoveMany(e.detail.items) }
   function sendFlipMany(e) { ws?.sendFlipMany(e.detail.cardIds) }
-  function sendDragMany(e) { if (!lowPerf()) ws?.sendDragMany(e.detail.items) }
+  function sendDragMany(e) { ws?.sendDragMany(e.detail.items) }
   function sendTransferMany(e) {
     const d = e.detail
     ws?.sendTransferMany(d.cardIds, d.target, d.ownerId ?? '')
@@ -199,15 +192,7 @@
     reorderHand(e.detail.cardIds)
     ws?.sendHandOrder(e.detail.cardIds)
   }
-  function sendDragEnd() { if (!lowPerf()) ws?.sendDragEnd() }
-
-  // Changement de niveau : prévenir le serveur, et oublier les positions de
-  // gestes en cours qu'on ne suivra plus.
-  function setPerf(level) {
-    perfLevel.set(level)
-    ws?.sendPerf(level)
-    if (level === 'low') liveDrag.set(null)
-  }
+  function sendDragEnd() { ws?.sendDragEnd() }
   function sendFlip(e)    { ws?.sendFlip(e.detail.cardId) }
   function sendFront(e)   { ws?.sendFront(e.detail.cardId) }
   function sendTransfer(e) {
@@ -450,18 +435,6 @@
             <span class="me" title="Connecté en tant que {session.name}">{session.name}</span>
             <span class="status" data-s={$wsStatus}>● {statusLabel}</span>
           </div>
-          <!-- Niveau de performance : préférence de ce joueur, sur cet appareil. -->
-          <div class="perf" role="radiogroup" aria-label="Performance">
-            <span class="perf-label">Performance</span>
-            <div class="perf-choices">
-              <button type="button" role="radio" aria-checked={$perfLevel === 'high'} class:on={$perfLevel === 'high'}
-                title="Gestes des autres joueurs en direct, animations complètes"
-                on:click={() => setPerf('high')}>Haute</button>
-              <button type="button" role="radio" aria-checked={$perfLevel === 'low'} class:on={$perfLevel === 'low'}
-                title="Ni gestes en direct ni animations : allège la tablette et la connexion"
-                on:click={() => setPerf('low')}>Basse</button>
-            </div>
-          </div>
           <!-- Boutons repoussés en bas de la colonne (margin-top: auto). -->
           <button class="newgame" on:click={askNewGame}>Nouvelle partie</button>
           <button class="logout" on:click={askLeave}>Quitter la partie</button>
@@ -583,15 +556,6 @@
   .who { display: flex; flex-wrap: wrap; align-items: baseline; gap: .1rem .5rem; }
   .status { font-size: .78rem; opacity: .85; white-space: nowrap; }
   .newgame { margin-top: auto; }
-  .perf { display: flex; flex-direction: column; gap: .25rem; margin-top: .4rem; }
-  .perf-label { font-size: .72rem; opacity: .7; text-transform: uppercase; letter-spacing: .04em; }
-  .perf-choices { display: flex; border: 1px solid rgba(255,255,255,0.2); border-radius: 7px; overflow: hidden; }
-  .perf-choices button {
-    flex: 1; border: 0; background: transparent; color: #eef; cursor: pointer;
-    padding: .35rem .2rem; font-size: .78rem;
-  }
-  .perf-choices button + button { border-left: 1px solid rgba(255,255,255,0.2); }
-  .perf-choices button.on { background: #2f9e63; color: #fff; font-weight: 600; }
   .status[data-s="open"] { color: #6fe39a; }
   .status[data-s="connecting"], .status[data-s="reconnecting"] { color: #ffd27a; }
   .status[data-s="closed"], .status[data-s="error"], .status[data-s="idle"] { color: #ff9a9a; }

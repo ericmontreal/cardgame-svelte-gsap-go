@@ -133,25 +133,3 @@ func TestNextClientIDUnique(t *testing.T) {
 		seen[id] = true
 	}
 }
-
-func TestBroadcastLiveSkipsLowPerformanceClients(t *testing.T) {
-	h := newHub()
-	sender, high, low := newTestClient("lobby"), newTestClient("lobby"), newTestClient("lobby")
-	low.lowPerf.Store(true)
-	for _, c := range []*client{sender, high, low} {
-		h.join(c, "lobby")
-	}
-	drag := []byte(`{"type":"drag"}`)
-	h.broadcastLive("lobby", drag, sender)
-	if len(high.send) != 1 {
-		t.Fatal("un client en performance haute doit recevoir le geste en cours")
-	}
-	if len(low.send) != 0 || len(sender.send) != 0 {
-		t.Fatal("ni l'émetteur ni un client en performance basse ne doivent le recevoir")
-	}
-	// Les messages ordinaires (état, chat) restent diffusés à tous.
-	h.broadcast("lobby", []byte(`{"type":"state"}`), nil)
-	if len(low.send) != 1 {
-		t.Fatal("un client en performance basse doit toujours recevoir l'état")
-	}
-}

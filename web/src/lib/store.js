@@ -3,7 +3,7 @@
 // Une seule source de vérité (le serveur) ; ce store ne fait qu'appliquer les
 // snapshots/deltas reçus via le WebSocket. Aucune logique de jeu ici.
 
-import { writable, get } from 'svelte/store'
+import { writable } from 'svelte/store'
 
 // ---- Session utilisateur (persistance par onglet du token) ---------------
 //
@@ -104,34 +104,6 @@ export function saveChatHidden(hidden) {
   try {
     localStorage.setItem(CHAT_HIDDEN_KEY, hidden ? '1' : '0')
   } catch {}
-}
-
-// ---- Niveau de performance (préférence locale) ---------------------------
-//
-// « high » (défaut, comportement d'origine) : les gestes en cours sont diffusés
-// en continu et ceux des autres affichés ; animations complètes.
-// « low » : on n'envoie plus la position de ses cartes pendant le geste (le
-// résultat part au lâcher), le serveur cesse de nous relayer les gestes des
-// autres, et les animations décoratives sont coupées. Allège la tablette et la
-// connexion montante du serveur. Retenu sur l'appareil, comme le repli du chat.
-
-const PERF_KEY = 'cardgame.perf'
-
-function loadPerf() {
-  try {
-    return localStorage.getItem(PERF_KEY) === 'low' ? 'low' : 'high'
-  } catch {}
-  return 'high'
-}
-
-export const perfLevel = writable(loadPerf())
-perfLevel.subscribe((v) => {
-  try { localStorage.setItem(PERF_KEY, v) } catch {}
-})
-
-// Raccourci pour le code non réactif (gestionnaires d'événements, animations).
-export function lowPerf() {
-  return get(perfLevel) === 'low'
 }
 
 // ---- Auth : POST /api/login ----------------------------------------------
