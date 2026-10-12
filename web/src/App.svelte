@@ -280,7 +280,7 @@
   })
   onDestroy(() => disconnectWs())
 
-  // Statut lisible pour la barre supérieure.
+  // Statut lisible (infobulle de sa propre pastille, colonne de gauche).
   $: statusLabel = {
     idle: 'déconnecté', connecting: 'connexion…', open: 'connecté',
     reconnecting: 'reconnexion…', closed: 'déconnecté', error: 'erreur',
@@ -313,10 +313,17 @@
 
   // État réactif partagé (tableState + myHand) pour les sous-composants.
   $: st = $tableState
-  // Autres joueurs connectés (colonne de gauche), hors ceux qui ont quitté.
-  $: others = (st.players ?? [])
-    .filter((p) => p.userId !== session?.id && !p.abandoned)
-    .sort((a, b) => a.name.localeCompare(b.name, 'fr'))
+  // Joueurs de la colonne de gauche, soi compris, par ordre alphabétique.
+  // Pastille verte : connecté ; grise sinon — pour soi, la connexion au
+  // serveur n'est pas ouverte ; pour les autres, ils ont quitté la partie
+  // (chaise grisée). Un joueur momentanément déconnecté n'est plus dans la
+  // liste du serveur, donc plus ici non plus.
+  $: roster = [
+    { userId: session?.id, name: session?.name ?? '', me: true, online: $wsStatus === 'open' },
+    ...(st.players ?? [])
+      .filter((p) => p.userId !== session?.id)
+      .map((p) => ({ userId: p.userId, name: p.name, me: false, online: !p.abandoned })),
+  ].sort((a, b) => a.name.localeCompare(b.name, 'fr'))
   $: hand = $myHand
 </script>
 
@@ -446,23 +453,15 @@
               <span>Motifs <a href="https://svg-cards.sourceforge.net/" target="_blank" rel="noopener noreferrer">D.&nbsp;Bellot</a></span>
             </p>
           </div>
-          <!-- Nom et statut sur une même ligne ; le statut passe dessous si
-               le nom est trop long pour la colonne. -->
-          <div class="who">
-            <span class="me" title="Connecté en tant que {session.name}">{session.name}</span>
-            <span class="status" data-s={$wsStatus}>● {statusLabel}</span>
-          </div>
-          <!-- Autres joueurs connectés, par ordre alphabétique. Ceux qui ont
-               quitté la partie (chaise grisée sur le tapis) n'y figurent pas ;
-               un joueur momentanément déconnecté disparaît de la liste du
-               serveur, donc d'ici aussi. -->
-          {#if others.length}
-            <ul class="others" aria-label="Autres joueurs connectés">
-              {#each others as p (p.userId)}
-                <li title={p.name}>{p.name}</li>
-              {/each}
-            </ul>
-          {/if}
+          <!-- Joueurs, soi compris, une seule mise en forme (cf. roster). -->
+          <ul class="roster" aria-label="Joueurs">
+            {#each roster as p (p.userId)}
+              <li class:me={p.me} class:online={p.online}
+                  title={p.me ? statusLabel : (p.online ? 'connecté' : 'a quitté la partie')}>
+                <span class="name">{p.name}</span>{#if p.me}<span class="you">&nbsp;(vous)</span>{/if}
+              </li>
+            {/each}
+          </ul>
           <!-- Boutons repoussés en bas de la colonne (margin-top: auto). -->
           <button class="newgame" on:click={askNewGame}>Nouvelle partie</button>
           <button class="logout" on:click={askLeave}>Quitter la partie</button>
@@ -594,16 +593,14 @@
   .credits span { display: block; }
   .credits span + span { margin-top: .1em; }
   .credits a { color: #ffd27a; text-decoration: underline; text-underline-offset: 2px; }
-  .me { color: #ffd27a; font-weight: 700; overflow-wrap: anywhere; }
-  .who { display: flex; flex-wrap: wrap; align-items: baseline; gap: .1rem .5rem; }
-  .status { font-size: .78rem; opacity: .85; white-space: nowrap; }
   .newgame { margin-top: auto; }
-  .others { list-style: none; margin: .1rem 0 0; padding: 0; display: flex; flex-direction: column; gap: .15rem; }
-  .others li { font-size: .8rem; color: #dfe; overflow-wrap: anywhere; }
-  .others li::before { content: '●'; color: #6fe39a; font-size: .7em; margin-right: .4em; vertical-align: .1em; }
-  .status[data-s="open"] { color: #6fe39a; }
-  .status[data-s="connecting"], .status[data-s="reconnecting"] { color: #ffd27a; }
-  .status[data-s="closed"], .status[data-s="error"], .status[data-s="idle"] { color: #ff9a9a; }
+  .roster { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .15rem; }
+  .roster li { font-size: .85rem; color: #dfe; overflow-wrap: anywhere; }
+  .roster li::before { content: '●'; color: #8a948f; font-size: .7em; margin-right: .4em; vertical-align: .1em; }
+  .roster li.online::before { color: #6fe39a; }
+  .roster li:not(.online) { opacity: .6; }
+  .roster li.me .name { color: #ffd27a; font-weight: 700; }
+  .roster .you { font-size: .85em; opacity: .8; }
   .newgame, .logout {
     border: 1px solid rgba(255,255,255,0.2); background: transparent; color: #eef;
     padding: .4rem .4rem; border-radius: 7px; cursor: pointer; font-size: .8rem;
