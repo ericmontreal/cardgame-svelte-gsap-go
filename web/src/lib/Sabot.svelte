@@ -14,6 +14,19 @@
   // tirage, puisque c'est bien elle qui sortira.
   export let top = null
   $: topHref = top ? spriteHref(top.faceId) : '#sym-back'
+  // Cartes du dessus du sabot, de bas en haut (état public, sabotStack) :
+  // faceId si face visible, '' si face cachée. Chaque carte de la pile est
+  // dessinée telle qu'elle est : un dos n'apparaît que pour une carte dont on
+  // SAIT qu'elle est face cachée — jamais sous des cartes toutes visibles,
+  // ni quand le mélange écarte la pile.
+  export let stack = []
+  $: shown = Math.min(count, 4)
+  function stackHref(i, stack, topHref, shown) {
+    // La pile ne correspond pas (état d'un serveur plus ancien) : ancien rendu,
+    // dos dessous et carte du dessus selon `top`.
+    if (stack.length !== shown) return i === shown - 1 ? topHref : '#sym-back'
+    return stack[i] ? spriteHref(stack[i]) : '#sym-back'
+  }
   export let x = 40
   export let y = 40
   export let cardW = 92
@@ -195,7 +208,7 @@
        le sabot est vide. -->
   <div class="well" aria-hidden="true" style="--pad:{wellPad}px;"></div>
   {#if count > 0}
-    <!-- Empilement visuel : quelques dos décalés pour l'effet "pile" -->
+    <!-- Empilement visuel : les cartes du dessus, décalées pour l'effet "pile" -->
     {#each [0, 1, 2, 3] as i}
       {#if i < Math.min(count, 4)}
         <svg
@@ -208,11 +221,7 @@
           preserveAspectRatio="xMidYMid meet"
           style="--i:{i}"
         >
-          {#if i === Math.min(count, 4) - 1}
-            <use href={topHref} xlink:href={topHref}></use>
-          {:else}
-            <use href="#sym-back" xlink:href="#sym-back"></use>
-          {/if}
+          <use href={stackHref(i, stack, topHref, shown)} xlink:href={stackHref(i, stack, topHref, shown)}></use>
         </svg>
       {/if}
     {/each}

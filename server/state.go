@@ -949,10 +949,21 @@ type publicState struct {
 	// tout le monde la voit sur la table, l'information est donc publique.
 	// Absente (nil) quand elle est face cachée — le sabot ne révèle rien.
 	SabotTop    *Card    `json:"sabotTop,omitempty"`
+	// SabotStack décrit les (au plus) sabotStackShown cartes du dessus du
+	// sabot, de la plus basse à la plus haute : faceId si la carte est face
+	// visible, chaîne vide si elle est face cachée. Le client dessine sa pile
+	// avec : un dos n'apparaît que pour une carte réellement face cachée —
+	// jamais sous un paquet de cartes toutes visibles, ni pendant le mélange.
+	// N'en dit pas plus que la table : une carte visible l'a été de tous.
+	SabotStack []string `json:"sabotStack"`
 	Table       []Card   `json:"table"`
 	Players     []Player `json:"players"`
 	Initialized bool     `json:"initialized"`
 }
+
+// sabotStackShown : nombre de cartes que le client dessine en pile sur le
+// sabot (Sabot.svelte) — l'état public n'en décrit pas davantage.
+const sabotStackShown = 4
 
 // handPayload est la vue privée envoyée au seul propriétaire d'une main.
 type handPayload struct {
@@ -967,6 +978,14 @@ func (e *engine) snapshotPublic() publicState {
 			t := *top
 			out.SabotTop = &t
 		}
+	}
+	out.SabotStack = []string{}
+	for i := max(0, len(e.sabot)-sabotStackShown); i < len(e.sabot); i++ {
+		face := ""
+		if c := e.findCard(e.sabot[i]); c != nil && c.FaceUp {
+			face = c.FaceID
+		}
+		out.SabotStack = append(out.SabotStack, face)
 	}
 	handCounts := make(map[string]int, len(e.players))
 	for _, c := range e.cards {

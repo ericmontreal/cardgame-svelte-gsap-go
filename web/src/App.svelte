@@ -471,6 +471,7 @@
           players={st.players}
           sabotCount={st.sabotCount}
           sabotTop={st.sabotTop}
+          sabotStack={st.sabotStack}
           sabotShuffleAt={$sabotShuffle?.at ?? 0}
           initialized={st.initialized}
           myUserId={session.id}

@@ -845,6 +845,36 @@ func TestShuffleSabotAlwaysChangesOrderAndSabotTopFollows(t *testing.T) {
 	}
 }
 
+// La pile publique du sabot : les 4 cartes du dessus au plus, de bas en haut,
+// face visible nommée, face cachée vide.
+func TestSnapshotSabotStackShowsOnlyRealBacks(t *testing.T) {
+	e := newEngineWithCards(t, 6)
+	for _, id := range e.sabot[4:] {
+		e.findCard(id).FaceUp = true
+	}
+	st := e.snapshotPublic().SabotStack
+	if len(st) != 4 {
+		t.Fatalf("pile de %d cartes, attendu 4", len(st))
+	}
+	if st[0] != "" || st[1] != "" || st[2] != e.findCard(e.sabot[4]).FaceID || st[3] != e.findCard(e.sabot[5]).FaceID {
+		t.Fatalf("pile inattendue %q", st)
+	}
+	e2 := newEngineWithCards(t, 2)
+	for _, id := range e2.sabot {
+		e2.findCard(id).FaceUp = true
+	}
+	for _, f := range e2.snapshotPublic().SabotStack {
+		if f == "" {
+			t.Fatal("dos annoncé alors que toutes les cartes du sabot sont visibles")
+		}
+	}
+	e2.DrawSabot(Transfer{Target: TargetTable, X: 300, Y: 300})
+	e2.DrawSabot(Transfer{Target: TargetTable, X: 400, Y: 300})
+	if st := e2.snapshotPublic().SabotStack; st == nil || len(st) != 0 {
+		t.Fatalf("sabot vide : pile %v, attendu []", st)
+	}
+}
+
 func TestTransferManyToSabotBottomKeepsPileOrderUnderTheShoe(t *testing.T) {
 	e := newEngineWithCards(t, 6)
 	var ids []string
