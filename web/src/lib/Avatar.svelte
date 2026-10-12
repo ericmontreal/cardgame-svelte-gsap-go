@@ -106,17 +106,18 @@
     transition: transform .12s ease, box-shadow .12s ease;
   }
   /* Même taille que le compteur du sabot (.badge dans Sabot.svelte) : les deux
-     disent la même chose, un nombre de cartes. */
+     disent la même chose, un nombre de cartes. Toute modification ici doit y
+     être reportée. */
   .handcount {
     position: absolute;
     top: -6px;
     right: -6px;
     background: #2f9e63;
     color: #fff;
-    font-size: 12px;
+    font-size: 15px;
     font-weight: 700;
-    min-width: 22px;
-    height: 22px;
+    min-width: 26px;
+    height: 26px;
     padding: 0 6px;
     border-radius: 999px;
     display: grid;

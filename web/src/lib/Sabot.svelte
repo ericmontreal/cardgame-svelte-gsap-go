@@ -273,15 +273,17 @@
     transform: translate(calc(var(--i) * -2px), calc(var(--i) * -2px));
   }
   .stack-card.top { box-shadow: 0 6px 14px rgba(0,0,0,0.45); }
+  /* Même taille que le compteur de cartes des joueurs (.handcount dans
+     Avatar.svelte), plus lisible sur tablette que les 12px d'origine. */
   .badge {
     position: absolute;
     top: -10px; right: -10px;
     background: #2f9e63;
     color: #fff;
-    font-size: 12px;
+    font-size: 15px;
     font-weight: 700;
-    min-width: 22px;
-    height: 22px;
+    min-width: 26px;
+    height: 26px;
     padding: 0 6px;
     border-radius: 999px;
     display: grid;
