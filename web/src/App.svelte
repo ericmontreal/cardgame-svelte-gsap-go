@@ -428,7 +428,9 @@
              pour rendre sa hauteur au jeu. Elle s'arrête à la main, qui court
              dessous sur toute la largeur de la zone de jeu. -->
         <aside class="sidebar" style="width:{sideW}px;">
-          <span class="brand">🃏 Jouons</span>
+          <!-- Logo du jeu (public/logo-cest-vert.webp : recadré sur le disque,
+               320px, fond transparent), à la place de l'icône et du titre. -->
+          <img class="brand-logo" src="/logo-cest-vert.webp" alt="C'est vert !" />
           <!-- Nom et statut sur une même ligne ; le statut passe dessous si
                le nom est trop long pour la colonne. -->
           <div class="who">
@@ -551,7 +553,9 @@
     border-right: 2px solid rgba(255,255,255,0.1);
     font-size: .82rem; line-height: 1.3;
   }
-  .brand { font-weight: 700; font-size: 1rem; }
+  /* Logo : toute la largeur de la colonne, plafonné pour ne pas envahir un
+     grand écran (la colonne y dépasse 280px). */
+  .brand-logo { display: block; width: 100%; max-width: 170px; height: auto; margin: 0 auto .3rem; }
   .me { color: #ffd27a; font-weight: 700; overflow-wrap: anywhere; }
   .who { display: flex; flex-wrap: wrap; align-items: baseline; gap: .1rem .5rem; }
   .status { font-size: .78rem; opacity: .85; white-space: nowrap; }
