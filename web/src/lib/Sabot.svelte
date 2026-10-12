@@ -206,7 +206,6 @@
     {/each}
   {/if}
   <div class="badge">{count}</div>
-  <div class="label">Sabot</div>
   <!-- pointerdown arrêté ici : sans cela, le clic remonterait au sabot (début
        de tirage, capture du pointeur) puis au tapis (rectangle de sélection). -->
   <!-- Contre-échelle : le bouton garde sa taille réelle sur tablette, où le
@@ -290,21 +289,11 @@
     font-family: system-ui, sans-serif;
     box-shadow: 0 2px 6px rgba(0,0,0,0.4);
   }
-  .label {
-    position: absolute;
-    bottom: -22px; left: 50%;
-    transform: translateX(-50%);
-    background: rgba(0,0,0,0.55);
-    color: #fff;
-    font-size: 11px;
-    padding: 1px 8px;
-    border-radius: 999px;
-    font-family: system-ui, sans-serif;
-    white-space: nowrap;
-  }
   .shuffle {
     position: absolute;
-    top: calc(100% + 30px); left: 50%;
+    /* Sous le sabot. L'étiquette « Sabot » qui s'intercalait a été retirée :
+       l'emplacement coloré suffit à le désigner. */
+    top: calc(100% + 14px); left: 50%;
     transform: translateX(-50%); /* + contre-échelle, posée en ligne */
     transform-origin: top center;
     border: 1px solid rgba(255, 210, 122, 0.4);
