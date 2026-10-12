@@ -605,19 +605,28 @@ func TestReorderHandFollowsThePlayersChoice(t *testing.T) {
 	}
 }
 
-func TestLongSideSeatsSitBackFromTheTable(t *testing.T) {
-	// Siège 0 = sud, siège 3 = nord : en retrait, seatOutset au-delà du bord.
-	// Les sièges des petits côtés restent dans la table.
+func TestSeatsCenterTheAvatarOnTheFeltEdge(t *testing.T) {
+	// Le centre du cercle de chaque avatar est sur le bord du feutre : sud et
+	// nord à feltInset du bord haut/bas, petits côtés à feltInset du bord
+	// gauche/droit. Le cercle empiète ainsi de moitié sur le feutre.
 	e := newEngine()
-	south, north, side := &Player{}, &Player{}, &Player{}
-	e.layoutAvatar(south, 0, tableW, tableH)
-	e.layoutAvatar(north, 3, tableW, tableH)
-	e.layoutAvatar(side, 1, tableW, tableH)
-	if math.Abs(south.AY-(tableH+seatOutset)) > 0.001 || math.Abs(north.AY+seatOutset) > 0.001 {
-		t.Fatalf("sièges sud/nord attendus à %.0f et %.0f, obtenu %.1f et %.1f", tableH+seatOutset, -seatOutset, south.AY, north.AY)
+	seat := func(i int) *Player { p := &Player{}; e.layoutAvatar(p, i, tableW, tableH); return p }
+	near := func(a, b float64) bool { return math.Abs(a-b) < 0.01 }
+	if s := seat(0); !near(s.AY, tableH-feltInset) {
+		t.Fatalf("siège sud attendu à y=%.0f, obtenu %.2f", tableH-feltInset, s.AY)
 	}
-	if side.AY <= 0 || side.AY >= tableH || side.AX <= 0 || side.AX >= tableW {
-		t.Fatalf("un siège de petit côté doit rester dans la table, obtenu (%.1f, %.1f)", side.AX, side.AY)
+	if n := seat(3); !near(n.AY, feltInset) {
+		t.Fatalf("siège nord attendu à y=%.0f, obtenu %.2f", feltInset, n.AY)
+	}
+	for _, i := range []int{1, 2} {
+		if l := seat(i); math.Abs(l.AX-feltInset) > 0.1 {
+			t.Fatalf("siège %d (côté gauche) attendu à x=%.0f, obtenu %.2f", i, feltInset, l.AX)
+		}
+	}
+	for _, i := range []int{4, 5} {
+		if r := seat(i); math.Abs(r.AX-(tableW-feltInset)) > 0.1 {
+			t.Fatalf("siège %d (côté droit) attendu à x=%.0f, obtenu %.2f", i, tableW-feltInset, r.AX)
+		}
 	}
 }
 

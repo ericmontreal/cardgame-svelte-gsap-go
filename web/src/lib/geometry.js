@@ -14,11 +14,13 @@ export const FELT_INSET = 40 // pourtour bois
 export const CARD_W = 140
 export const CARD_H = 196
 
-// Bande réservée au-dessus et au-dessous de la table pour les sièges des
-// grands côtés, que le serveur pose en retrait, 10px au-delà du bord
-// (seatOutset, server/handlers.go). Un avatar avec son nom mesure ~101px :
-// centré à 10px du bord, il en dépasse d'au plus ~61px.
-export const SEAT_BAND = 64
+// Bande réservée au-dessus et au-dessous de la table pour le nom des sièges
+// des grands côtés. Le serveur pose le centre du cercle de l'avatar sur le
+// bord du feutre (FELT_INSET du bord de la table, layoutAvatar) ; au-delà du
+// cercle de 70px viennent 4px d'écart et une étiquette de ~33px :
+// 40 - 35 - 4 - 33 = -32px au nord, autant au sud. 40px laissent une marge
+// pour les polices plus hautes (Android).
+export const SEAT_BAND = 40
 
 // En deçà, les cartes deviennent illisibles : on laisse alors défiler.
 export const MIN_SCALE = 0.45

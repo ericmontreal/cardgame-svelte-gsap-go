@@ -2,11 +2,15 @@
   // Avatar 64×64 (§8) : représente un joueur à table. Cible de drop : déposer
   // une carte sur un avatar la transfère dans la main privée du joueur (§6).
   import { createEventDispatcher } from 'svelte'
-  import { TABLE_W } from './geometry.js'
+  import { TABLE_W, FELT_INSET } from './geometry.js'
 
   export let player = { userId: '', name: '', ax: 0, ay: 0, handCount: 0 }
   export let isMe = false
-  export let size = 64
+  // Diamètre extérieur du cercle, liseré compris (box-sizing: border-box).
+  // 70 = l'ancien cercle de 64px plus son liseré de 3px de chaque côté : même
+  // aspect, mais la taille dit désormais vraiment ce qu'occupe le cercle, et
+  // l'ancrage sur son centre tombe juste (le liseré décalait tout de 3px).
+  export let size = 70
 
   const dispatch = createEventDispatcher()
 
@@ -33,9 +37,10 @@
   // l'intérieur du tapis.
   const EDGE = 140
   $: side = player.ax < EDGE ? 'left' : player.ax > TABLE_W - EDGE ? 'right' : ''
-  // Siège du grand côté nord, posé par le serveur au-dessus de la table : le
-  // nom passe au-dessus de l'avatar, qui reste ainsi au contact de la table.
-  $: north = player.ay < 0
+  // Siège du grand côté nord (centre du cercle sur le bord haut du feutre) :
+  // le nom passe au-dessus du cercle, hors de la table, au lieu de couvrir le
+  // feutre.
+  $: north = player.ay < FELT_INSET + 1
 
   // Feedback visuel au survol d'un drag.
   let hovered = false
@@ -78,10 +83,14 @@
 </div>
 
 <style>
+  /* (left, top) = centre du CERCLE, et non du bloc cercle + nom : le serveur
+     pose ce centre sur le bord du feutre (layoutAvatar), pour que le cercle y
+     empiète de moitié. Au nord, le nom passe au-dessus (column-reverse) : le
+     décalage vertical part alors du bas du bloc. */
   .avatar {
     position: absolute;
     width: var(--size);
-    transform: translate(-50%, -50%);
+    transform: translate(-50%, calc(var(--size) / -2));
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -92,10 +101,11 @@
   /* Sièges près d'un bord : l'étiquette déborde vers le tapis, pas hors de la
      table (cf. `side` dans le script). */
   .avatar.edge-left { align-items: flex-start; }
-  .avatar.north { flex-direction: column-reverse; }
+  .avatar.north { flex-direction: column-reverse; transform: translate(-50%, calc(-100% + var(--size) / 2)); }
   .avatar.edge-right { align-items: flex-end; }
   .medal {
     position: relative;
+    box-sizing: border-box;
     width: var(--size);
     height: var(--size);
     border-radius: 50%;

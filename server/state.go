@@ -152,27 +152,20 @@ func (e *engine) layoutAvatar(p *Player, index int, w, h float64) {
 	// hauteur totale de la table (w,h) : un siège dont le centre + la moitié
 	// de sa hauteur dépasserait h sortirait complètement de la zone
 	// défilable (perdu, pas seulement hors champ).
-	// Depuis que la bordure bois est passée de 80 à 40px, un avatar de 64px ne
-	// tient plus entièrement dessus : il mord d'autant sur le feutre. Les
-	// sièges sont posés pour que les avatars latéraux restent à 44px du bord,
-	// et ceux du haut et du bas à 60px (leur étiquette de nom, sous l'avatar,
-	// doit encore tenir dans la table pour le siège sud).
-	//   sièges latéraux : cx ± rx·cos(30°) = 44 du bord  ->  rx = (w/2-44)/0,866
-	//   siège sud/nord  : cy ± ry = 60 du bord           ->  ry = h/2-60
+	// (AX, AY) désigne le CENTRE DU CERCLE de l'avatar (Avatar.svelte s'y
+	// ancre), posé exactement sur le bord du feutre : le cercle empiète de
+	// moitié sur le feutre et de moitié sur le bois, sur les quatre côtés.
+	//   sièges latéraux : cx ± rx·cos(30°) = feltInset du bord -> rx = (w/2-feltInset)/0,866
+	//   siège sud/nord  : cy ± ry          = feltInset du bord -> ry = h/2-feltInset
+	// Le nom des sièges sud et nord déborde alors de la table ; le client lui
+	// réserve une bande au-dessus et au-dessous du tapis (SEAT_BAND,
+	// web/src/lib/geometry.js).
 	cx, cy := w/2, h/2
-	rx, ry := (w/2-44)/0.866, h/2-60
+	rx, ry := (w/2-feltInset)/0.866, h/2-feltInset
 	// Angle décalé pour que le siège 0 soit en bas (sud), face à la table.
 	a := float64(index%seats)*(2*math.Pi/seats) + math.Pi/2
 	p.AX = cx + rx*math.Cos(a)
 	p.AY = cy + ry*math.Sin(a)
-	// Sièges des grands côtés (sud et nord) : en retrait de la table, centrés
-	// à seatOutset au-delà de son bord. L'avatar chevauche alors le bord bois et
-	// son nom sort de la table, dans la bande que le client réserve au-dessus
-	// et au-dessous du tapis (SEAT_BAND, web/src/lib/geometry.js). Les sièges
-	// des petits côtés, eux, ne bougent pas.
-	if s := math.Sin(a); math.Abs(s) > 0.99 {
-		p.AY = cy + math.Copysign(h/2+seatOutset, s)
-	}
 }
 
 // removePlayer retire le joueur de la liste des connectés. Son siège reste
