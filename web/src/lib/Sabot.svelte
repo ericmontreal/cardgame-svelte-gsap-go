@@ -5,8 +5,15 @@
   //   - bouton « Mélanger » : bat les cartes restées dans le sabot.
   import { createEventDispatcher, onMount } from 'svelte'
   import { gsap } from 'gsap'
+  import { spriteHref } from './svg-sprite.js'
 
   export let count = 0           // nombre de cartes dans le sabot
+  // Carte du dessus quand elle est FACE VISIBLE (sinon null). Aucune carte ne
+  // se retourne d'elle-même : une carte rendue face visible au sabot y reste
+  // visible, et le sabot la montre — sur la pile comme sur le fantôme de
+  // tirage, puisque c'est bien elle qui sortira.
+  export let top = null
+  $: topHref = top ? spriteHref(top.faceId) : '#sym-back'
   export let x = 40
   export let y = 40
   export let cardW = 92
@@ -82,10 +89,11 @@
   // celui d'une carte du tapis (qui, elle, suit le curseur via Card.svelte) mais
   // sans aucun retour visuel — on ne savait pas si on tirait quelque chose.
   //
-  // Le fantôme est affiché DOS VISIBLE, et ce n'est pas un pis-aller : le client
-  // ignore quelle carte il tire. C'est le serveur qui prélève le sommet du sabot
-  // au relâchement (sabotDraw envoie un cardId vide, cf. handlers.go). Montrer
-  // une face ici obligerait à deviner, donc à mentir une fois sur deux.
+  // Le fantôme montre le DOS, sauf si la carte du dessus est face visible (top) :
+  // tout le monde la voit déjà, et c'est bien elle qui sortira. Sinon, le client
+  // ignore quelle carte il tire — le serveur prélève le sommet au relâchement
+  // (sabotDraw envoie un cardId vide, cf. handlers.go) — et montrer une face
+  // obligerait à deviner.
   //
   // position:fixed, car les cibles de dépôt (avatars, main du joueur) débordent
   // du tapis : un fantôme positionné dans le repère de la table serait tronqué
@@ -200,7 +208,11 @@
           preserveAspectRatio="xMidYMid meet"
           style="--i:{i}"
         >
-          <use href="#sym-back" xlink:href="#sym-back"></use>
+          {#if i === Math.min(count, 4) - 1}
+            <use href={topHref} xlink:href={topHref}></use>
+          {:else}
+            <use href="#sym-back" xlink:href="#sym-back"></use>
+          {/if}
         </svg>
       {/if}
     {/each}
@@ -236,7 +248,7 @@
   aria-hidden="true"
   style="width:{cardW * scale}px; height:{cardH * scale}px;"
 >
-  <use href="#sym-back" xlink:href="#sym-back"></use>
+  <use href={topHref} xlink:href={topHref}></use>
 </svg>
 
 <style>

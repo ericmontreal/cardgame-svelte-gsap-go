@@ -203,6 +203,42 @@ func TestTransferPreservesFaceState(t *testing.T) {
 	}
 }
 
+func TestCardsKeepTheirFaceWhenReturnedToTheSabot(t *testing.T) {
+	// Aucun retournement automatique, dans un sens comme dans l'autre : une
+	// carte face visible rendue au sabot y reste visible, et l'état public
+	// l'expose comme carte du dessus ; tirée à nouveau, elle sort visible.
+	e := newEngineWithCards(t, 4)
+	id, _ := e.DrawSabot(Transfer{Target: TargetTable, X: 300, Y: 300})
+	e.Flip(id) // face visible
+	if e.snapshotPublic().SabotTop != nil {
+		t.Fatal("le sabot n'expose pas une carte du dessus face cachée")
+	}
+	e.TransferCard(Transfer{CardID: id, Target: TargetSabot})
+	if !e.findCard(id).FaceUp {
+		t.Fatal("une carte face visible rendue au sabot doit rester face visible")
+	}
+	if top := e.snapshotPublic().SabotTop; top == nil || top.ID != id {
+		t.Fatal("l'état public doit exposer la carte du dessus face visible")
+	}
+	again, _ := e.DrawSabot(Transfer{Target: TargetTable, X: 200, Y: 200})
+	if again != id || !e.findCard(again).FaceUp {
+		t.Fatal("retirée du sabot, la carte doit ressortir face visible")
+	}
+	// « Au fond du sabot » conserve aussi la face ; l'abandon, lui, cache
+	// (promesse de la fenêtre de départ).
+	e.TransferManyToSabotBottom([]string{again})
+	if !e.findCard(again).FaceUp {
+		t.Fatal("« Au fond du sabot » doit conserver la face")
+	}
+	e.ensurePlayer("u-alice", "alice", tableW, tableH)
+	h, _ := e.DrawSabot(Transfer{Target: TargetHand, OwnerID: "u-alice"})
+	e.Flip(h)
+	e.Abandon("u-alice", AbandonToSabot)
+	if e.findCard(h).FaceUp {
+		t.Fatal("la main d'un partant doit partir face cachée")
+	}
+}
+
 func TestDrawSabotNeverRevealsTheCard(t *testing.T) {
 	// Aucun retournement automatique : seul un double-clic retourne une carte.
 	// Tirée sur le tapis ou distribuée dans une main, elle reste face cachée.
@@ -897,7 +933,7 @@ func TestTransferManyToSabotPreservesPileOrder(t *testing.T) {
 	e := newEngineWithCards(t, 2)
 	bottom, _ := e.DrawSabot(Transfer{Target: TargetTable, X: 10, Y: 10})
 	top, _ := e.DrawSabot(Transfer{Target: TargetTable, X: 10, Y: 10})
-	e.findCard(top).FaceUp = true // sera remise face cachée par le sabot
+	e.findCard(top).FaceUp = true // doit le rester : aucun retournement automatique
 	res := e.TransferMany([]string{top, bottom}, TargetSabot, "")
 	if !res.PublicChanged {
 		t.Fatal("l'état public devrait changer")
@@ -908,8 +944,8 @@ func TestTransferManyToSabotPreservesPileOrder(t *testing.T) {
 	if got := e.sabot[len(e.sabot)-1]; got != top {
 		t.Fatalf("la carte du dessus de la pile devrait être au sommet du sabot, got %s (attendu %s)", got, top)
 	}
-	if c := e.findCard(top); c.FaceUp {
-		t.Fatal("une carte remise au sabot doit être face cachée")
+	if c := e.findCard(top); !c.FaceUp {
+		t.Fatal("une carte face visible remise au sabot doit rester face visible")
 	}
 }
 

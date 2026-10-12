@@ -376,7 +376,7 @@ func (e *engine) Abandon(userID string, policy AbandonPolicy) bool {
 	}
 	switch policy {
 	case AbandonToSabot:
-		e.sendToSabotBottom(hand)
+		e.sendToSabotBottom(hand, true)
 	default:
 		e.abandonToTable(hand, p)
 	}
@@ -391,7 +391,12 @@ func (e *engine) Abandon(userID string, policy AbandonPolicy) bool {
 // Le lot est inséré d'un bloc, et non carte par carte : préfixer en boucle
 // inverserait l'ordre du paquet. Servi aussi bien par l'abandon que par
 // l'action « Au fond du sabot » de la sélection multiple.
-func (e *engine) sendToSabotBottom(cards []*Card) {
+//
+// hide : remettre les cartes face cachée. Seul l'abandon le demande — la
+// fenêtre de départ promet que « personne ne verra » la main du partant. Pour
+// un geste de joueur, la face est conservée : aucune carte ne se retourne
+// d'elle-même (consigne du 2026-10-12).
+func (e *engine) sendToSabotBottom(cards []*Card, hide bool) {
 	if len(cards) == 0 {
 		return
 	}
@@ -399,7 +404,9 @@ func (e *engine) sendToSabotBottom(cards []*Card) {
 	for _, c := range cards {
 		c.Zone = ZoneSabot
 		c.Owner = ""
-		c.FaceUp = false
+		if hide {
+			c.FaceUp = false
+		}
 		c.X, c.Y, c.Z, c.Rotate = 0, 0, 0, 0
 		ids = append(ids, c.ID)
 	}
@@ -434,7 +441,7 @@ func (e *engine) TransferManyToSabotBottom(ids []string) (changed bool, fromHand
 		return false, fromHands
 	}
 	sort.SliceStable(picked, func(i, j int) bool { return picked[i].Z < picked[j].Z })
-	e.sendToSabotBottom(picked)
+	e.sendToSabotBottom(picked, false)
 	return true, fromHands
 }
 
@@ -778,10 +785,11 @@ func (e *engine) applyTransfer(c *Card, fromZone Zone, t Transfer) TransferResul
 		return TransferResult{PublicChanged: true, FromHandOwner: prevHandOwner}
 
 	case TargetSabot:
-		// table→sabot : remise dans la shoe, toujours face cachée, au sommet.
+		// Remise dans le sabot, au sommet, SANS changer de face : une carte
+		// face visible y reste visible (le sabot montre alors sa carte du
+		// dessus, cf. snapshotPublic). Aucune carte ne se retourne d'elle-même.
 		c.Zone = ZoneSabot
 		c.Owner = ""
-		c.FaceUp = false
 		c.X, c.Y = 0, 0
 		c.Rotate = 0
 		c.Z = 0
@@ -908,8 +916,12 @@ func (e *engine) playerName(userID string) string {
 // publicState est la vue diffusée à TOUS les clients : sabot (décompte), cartes
 // de table (publiques), joueurs connectés. Les mains privées en sont exclues.
 type publicState struct {
-	Type        string   `json:"type"` // toujours "state"
-	SabotCount  int      `json:"sabotCount"`
+	Type       string `json:"type"` // toujours "state"
+	SabotCount int    `json:"sabotCount"`
+	// SabotTop est la carte du dessus du sabot quand elle est FACE VISIBLE :
+	// tout le monde la voit sur la table, l'information est donc publique.
+	// Absente (nil) quand elle est face cachée — le sabot ne révèle rien.
+	SabotTop    *Card    `json:"sabotTop,omitempty"`
 	Table       []Card   `json:"table"`
 	Players     []Player `json:"players"`
 	Initialized bool     `json:"initialized"`
@@ -923,6 +935,12 @@ type handPayload struct {
 // snapshotPublic construit l'état public complet.
 func (e *engine) snapshotPublic() publicState {
 	out := publicState{Type: "state", SabotCount: len(e.sabot), Initialized: e.Initialized()}
+	if n := len(e.sabot); n > 0 {
+		if top := e.findCard(e.sabot[n-1]); top != nil && top.FaceUp {
+			t := *top
+			out.SabotTop = &t
+		}
+	}
 	handCounts := make(map[string]int, len(e.players))
 	for _, c := range e.cards {
 		if c.Zone == ZoneTable {

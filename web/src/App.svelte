@@ -458,6 +458,7 @@
           table={st.table}
           players={st.players}
           sabotCount={st.sabotCount}
+          sabotTop={st.sabotTop}
           sabotShuffleAt={$sabotShuffle?.at ?? 0}
           initialized={st.initialized}
           myUserId={session.id}

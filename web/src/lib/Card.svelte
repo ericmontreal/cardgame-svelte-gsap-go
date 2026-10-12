@@ -9,6 +9,7 @@
   // les transmet au serveur autoritaire. Aucune logique de jeu ici.
   import { createEventDispatcher, onMount, afterUpdate } from 'svelte'
   import { gsap } from 'gsap'
+  import { spriteHref } from './svg-sprite.js'
 
   // `c` : carte (état serveur). `zone` : 'table' | 'hand' (comportement drop).
   export let c = { id: '', faceId: '1_club', faceUp: true, x: 0, y: 0, z: 0, rotate: 0 }
@@ -29,16 +30,10 @@
   let rootEl        // élément racine pour les animations GSAP
 
   // ---- Rendu du symbole via <use href="#sym-..."> ----
-  // Le serveur nomme les jokers « black_joker » / « red_joker » (deck.go),
-  // le sprite SVG-cards « joker_black » / « joker_red ». Sans correspondance,
-  // <use> visait un symbole inexistant et les jokers s'affichaient vides.
-  // Corrigé ici plutôt que côté serveur : renommer obligerait à le redémarrer,
-  // ce qui efface la partie en cours, et cette table reste inoffensive si le
-  // serveur adopte un jour les noms du sprite.
-  const SPRITE_ALIAS = { black_joker: 'joker_black', red_joker: 'joker_red' }
+  // spriteHref (svg-sprite.js) traduit les noms des jokers vers ceux du sprite.
   function setBoth() {
     if (!useEl) return
-    const target = '#sym-' + (c.faceUp ? (SPRITE_ALIAS[currentId] ?? currentId) : backId)
+    const target = c.faceUp ? spriteHref(currentId) : '#sym-' + backId
     useEl.setAttribute('href', target)
     useEl.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', target)
   }

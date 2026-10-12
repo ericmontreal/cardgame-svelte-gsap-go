@@ -13,6 +13,7 @@
   export let table = []          // cartes publiques (zone table)
   export let players = []        // joueurs connectés
   export let sabotCount = 0
+  export let sabotTop = null    // carte du dessus du sabot, si face visible
   export let sabotShuffleAt = 0  // dernier mélange annoncé (anime le sabot)
   export let initialized = false
   export let myUserId = ''
@@ -518,6 +519,7 @@
     <!-- Sabot -->
     <Sabot
       count={sabotCount}
+      top={sabotTop}
       x={SABOT_POS.x}
       y={SABOT_POS.y}
       cardW={CARD_W}

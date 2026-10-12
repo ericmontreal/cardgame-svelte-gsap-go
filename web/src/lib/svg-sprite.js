@@ -144,3 +144,12 @@ export async function ensureInlineSprite(path = '/cards.svg') {
     console.log(`[cards] ${made} symbole(s) créé(s)${skipped ? `, ${skipped} ignoré(s)` : ''}`)
   }
 }
+
+// spriteHref renvoie la référence du symbole à dessiner pour une face de carte.
+// Le serveur nomme les jokers « black_joker » / « red_joker » (deck.go), le
+// sprite SVG-cards « joker_black » / « joker_red » : sans cette correspondance,
+// <use> visait un symbole inexistant et les jokers s'affichaient vides.
+const SPRITE_ALIAS = { black_joker: 'joker_black', red_joker: 'joker_red' }
+export function spriteHref(faceId) {
+  return '#sym-' + (SPRITE_ALIAS[faceId] ?? faceId)
+}

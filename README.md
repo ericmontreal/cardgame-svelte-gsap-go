@@ -199,10 +199,12 @@ légalité d'un coup — il n'y a pas de coup légal.
   « alice tire une carte », « alice ramasse une carte ». Il dit qui, combien
   et à qui, jamais quelles cartes.
 - **Glisser-déposer** entre sabot, tapis, main et avatars des autres joueurs.
-  **Aucune carte ne se retourne d'elle-même** : tirée du sabot, sur le tapis ou
-  dans une main, elle arrive face cachée, et seul un double-clic la retourne.
-  Un déplacement ne change jamais l'état face — un joueur qui a retourné sa
-  carte avant de la poser voit son choix respecté.
+  **Aucune carte ne se retourne d'elle-même, dans un sens ou dans l'autre** :
+  seul un double-clic change sa face. Tirée du sabot, elle sort comme elle y
+  était (face cachée pour un sabot neuf) ; posée, donnée ou rendue au sabot,
+  elle garde sa face. Une carte face visible rendue au sabot reste visible :
+  le sabot la montre sur sa pile. Seule exception, la main d'un joueur qui
+  quitte la partie part face cachée, comme la fenêtre de départ le promet.
 - **Sélection multiple** : rectangle tracé sur le feutre, `Maj`+clic pour
   ajouter ou retirer, `Ctrl`+clic pour saisir une pile entière (reconstruite
   géométriquement — le serveur n'a pas de notion de pile). Puis empiler, étaler,

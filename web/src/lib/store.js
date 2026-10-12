@@ -149,6 +149,7 @@ function emptyState() {
   return {
     initialized: false,
     sabotCount: 0,
+    sabotTop: null, // carte du dessus du sabot si elle est face visible
     table: [],     // cartes publiques sur le tapis
     players: [],   // joueurs connectés (avec position d'avatar)
   }
@@ -183,6 +184,7 @@ export function applyState(payload) {
   tableState.set({
     initialized: !!payload.initialized,
     sabotCount: payload.sabotCount ?? 0,
+    sabotTop: payload.sabotTop ?? null,
     table: Array.isArray(payload.table) ? payload.table : [],
     players: Array.isArray(payload.players) ? payload.players : [],
   })
