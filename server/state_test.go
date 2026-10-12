@@ -665,6 +665,32 @@ func TestMoveSeatKeepsTheAvatarOnTheFeltEdgeAndRemembersIt(t *testing.T) {
 	}
 }
 
+func TestAvatarsKeepTheirDistance(t *testing.T) {
+	e := newEngine()
+	e.ensurePlayer("u-alice", "alice", tableW, tableH) // siège sud (720, 760)
+	e.ensurePlayer("u-bob", "bob", tableW, tableH)
+	alice := e.players["u-alice"]
+	// Bob se pose presque sur Alice : il glisse jusqu'à la place libre.
+	if !e.MoveSeat("u-bob", alice.AX+20, alice.AY) {
+		t.Fatal("le déplacement aurait dû aboutir à une place libre")
+	}
+	bob := e.players["u-bob"]
+	if d := math.Hypot(bob.AX-alice.AX, bob.AY-alice.AY); d < seatGap-0.01 || d > seatGap+2.5 {
+		t.Fatalf("bob devrait être juste à %.0f de alice, il est à %.1f", seatGap, d)
+	}
+	if bob.AX <= alice.AX {
+		t.Fatalf("bob, lâché à droite de alice, devrait glisser à droite (x=%.1f)", bob.AX)
+	}
+	// Un nouvel arrivant dont le siège par défaut (nord) est occupé est décalé.
+	e.MoveSeat("u-alice", tableW/2, 0) // alice s'installe au nord
+	e.ensurePlayer("u-carl", "carl", tableW, tableH)
+	e.ensurePlayer("u-dana", "dana", tableW, tableH) // siège 3 = nord, pris par alice
+	dana, al := e.players["u-dana"], e.players["u-alice"]
+	if d := math.Hypot(dana.AX-al.AX, dana.AY-al.AY); d < seatGap-0.01 {
+		t.Fatalf("dana ne doit pas chevaucher alice (distance %.1f)", d)
+	}
+}
+
 func TestShuffleSabotKeepsSameCardsAndLeavesTableAndHandsAlone(t *testing.T) {
 	e := newEngineWithCards(t, 52)
 	e.ensurePlayer("u-alice", "alice", tableW, tableH)

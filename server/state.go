@@ -124,6 +124,12 @@ func (e *engine) ensurePlayer(userID, name string, tableW, tableH float64) *Play
 	if pos, ok := e.seatPos[userID]; ok {
 		p.AX, p.AY = pos[0], pos[1]
 	}
+	// Un autre joueur a pu s'asseoir entre-temps à cette place (siège par
+	// défaut ou place retenue) : on décale le nouvel arrivant jusqu'à la
+	// place libre la plus proche, pour garder les avatars distincts.
+	if x, y, ok := placeSeat(p.AX, p.AY, e.otherSeats(userID)); ok {
+		p.AX, p.AY = x, y
+	}
 	e.players[userID] = p
 	return p
 }
@@ -186,13 +192,103 @@ func (e *engine) MoveSeat(userID string, x, y float64) bool {
 	if math.IsNaN(x) || math.IsNaN(y) || math.IsInf(x, 0) || math.IsInf(y, 0) {
 		return false
 	}
-	x, y = projectOnSeatRing(x, y)
-	if x == p.AX && y == p.AY {
+	x, y, free := placeSeat(x, y, e.otherSeats(userID))
+	if !free || (x == p.AX && y == p.AY) {
 		return false
 	}
 	p.AX, p.AY = x, y
 	e.seatPos[userID] = [2]float64{x, y}
 	return true
+}
+
+// otherSeats renvoie la place des autres avatars à table (chaises grisées des
+// partants comprises : elles restent affichées).
+func (e *engine) otherSeats(userID string) [][2]float64 {
+	var out [][2]float64
+	for id, p := range e.players {
+		if id != userID {
+			out = append(out, [2]float64{p.AX, p.AY})
+		}
+	}
+	return out
+}
+
+// seatGap est l'écart minimal entre les centres de deux avatars. Sans lui, deux
+// avatars pouvaient se chevaucher, et donner une carte à l'un risquait de la
+// donner à l'autre. 140 (deux cercles de 70px) ne suffisait pas sur les petits
+// côtés : le nom, sous le cercle, occupe l'intervalle, et la cible de dépôt
+// comprend ce nom. Avec 180, il reste ~73px entre l'étiquette d'un joueur et le
+// cercle de son voisin (cercle 35 + écart 4 + nom 33 + cercle 35 = 107).
+// MÊME VALEUR côté client (SEAT_GAP, web/src/lib/geometry.js).
+const seatGap = 180.0
+
+// placeSeat ramène (x, y) sur le pourtour des sièges, puis, si la place est
+// trop proche d'un autre avatar, la fait glisser le long du pourtour jusqu'à la
+// place libre la plus proche. ok vaut false si aucune place libre n'existe.
+func placeSeat(x, y float64, others [][2]float64) (float64, float64, bool) {
+	x, y = projectOnSeatRing(x, y)
+	free := func(px, py float64) bool {
+		for _, o := range others {
+			if math.Hypot(px-o[0], py-o[1]) < seatGap {
+				return false
+			}
+		}
+		return true
+	}
+	if free(x, y) {
+		return x, y, true
+	}
+	perimeter := ringLength()
+	s0 := ringPos(x, y)
+	const step = 2.0
+	for d := step; d <= perimeter/2; d += step {
+		for _, s := range []float64{s0 + d, s0 - d} {
+			if px, py := ringPoint(s); free(px, py) {
+				return px, py, true
+			}
+		}
+	}
+	return x, y, false
+}
+
+// Le pourtour des sièges, parcouru dans le sens horaire à partir du coin haut
+// gauche : bord haut, bord droit, bord bas, bord gauche. ringPos donne
+// l'abscisse curviligne d'un point du pourtour, ringPoint l'inverse.
+func ringSides() (w, h float64) { return tableW - 2*feltInset, tableH - 2*feltInset }
+func ringLength() float64     { w, h := ringSides(); return 2 * (w + h) }
+
+func ringPos(x, y float64) float64 {
+	w, h := ringSides()
+	l, t := feltInset, feltInset
+	switch {
+	case y == t:
+		return x - l
+	case x == l+w:
+		return w + (y - t)
+	case y == t+h:
+		return w + h + (l + w - x)
+	default:
+		return 2*w + h + (t + h - y)
+	}
+}
+
+func ringPoint(s float64) (float64, float64) {
+	w, h := ringSides()
+	l, t := feltInset, feltInset
+	s = math.Mod(s, ringLength())
+	if s < 0 {
+		s += ringLength()
+	}
+	switch {
+	case s < w:
+		return l + s, t
+	case s < w+h:
+		return l + w, t + (s - w)
+	case s < 2*w+h:
+		return l + w - (s - w - h), t + h
+	default:
+		return l, t + h - (s - 2*w - h)
+	}
 }
 
 // projectOnSeatRing ramène une position du tapis sur le pourtour où s'assoient

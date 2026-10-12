@@ -42,6 +42,53 @@ export function projectOnSeatRing(x, y) {
   return { x, y }
 }
 
+// Écart minimal entre les centres de deux avatars, pour que donner une carte à
+// l'un ne risque pas de la donner à l'autre. Sur les petits côtés, le nom passe
+// sous le cercle et fait partie de la cible de dépôt : 180 laissent ~73px entre
+// l'étiquette d'un joueur et le cercle de son voisin. MÊME VALEUR côté serveur
+// (seatGap, server/state.go).
+export const SEAT_GAP = 180
+
+// placeSeat ramène (x, y) sur le pourtour des sièges puis, si la place est trop
+// proche d'un autre avatar (others : [{x, y}]), la fait glisser le long du
+// pourtour jusqu'à la place libre la plus proche. Même algorithme que le
+// serveur (placeSeat, server/state.go), qui a le dernier mot ; ici, il sert à
+// montrer pendant le geste la place qui sera réellement retenue.
+export function placeSeat(x, y, others = []) {
+  const p = projectOnSeatRing(x, y)
+  const free = (q) => others.every((o) => Math.hypot(q.x - o.x, q.y - o.y) >= SEAT_GAP)
+  if (free(p)) return { ...p, ok: true }
+  const perimeter = ringLength()
+  const s0 = ringPos(p.x, p.y)
+  for (let d = 2; d <= perimeter / 2; d += 2) {
+    for (const s of [s0 + d, s0 - d]) {
+      const q = ringPoint(s)
+      if (free(q)) return { ...q, ok: true }
+    }
+  }
+  return { ...p, ok: false }
+}
+
+// Pourtour des sièges parcouru dans le sens horaire depuis le coin haut gauche
+// (bord haut, droit, bas, gauche) : abscisse curviligne <-> point.
+function ringSides() { return [TABLE_W - 2 * FELT_INSET, TABLE_H - 2 * FELT_INSET] }
+function ringLength() { const [w, h] = ringSides(); return 2 * (w + h) }
+function ringPos(x, y) {
+  const [w, h] = ringSides(), l = FELT_INSET, t = FELT_INSET
+  if (y === t) return x - l
+  if (x === l + w) return w + (y - t)
+  if (y === t + h) return w + h + (l + w - x)
+  return 2 * w + h + (t + h - y)
+}
+function ringPoint(s) {
+  const [w, h] = ringSides(), l = FELT_INSET, t = FELT_INSET, P = ringLength()
+  s = ((s % P) + P) % P
+  if (s < w) return { x: l + s, y: t }
+  if (s < w + h) return { x: l + w, y: t + (s - w) }
+  if (s < 2 * w + h) return { x: l + w - (s - w - h), y: t + h }
+  return { x: l, y: t + h - (s - 2 * w - h) }
+}
+
 // En deçà, les cartes deviennent illisibles : on laisse alors défiler.
 export const MIN_SCALE = 0.45
 

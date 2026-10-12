@@ -534,6 +534,7 @@
         player={p}
         isMe={p.userId === myUserId}
         movable={p.userId === myUserId && !p.abandoned}
+        others={p.userId === myUserId ? players.filter((o) => o.userId !== myUserId).map((o) => ({ x: o.ax, y: o.ay })) : []}
         on:seat={(e) => dispatch('seatMove', e.detail)}
       />
     {/each}

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { fitScale, sidebarWidth, projectOnSeatRing, TABLE_W, TABLE_H, CARD_H, HAND_CHROME, MIN_SCALE, SEAT_BAND, FELT_INSET } from './geometry.js'
+import { fitScale, sidebarWidth, projectOnSeatRing, placeSeat, TABLE_W, TABLE_H, CARD_H, HAND_CHROME, MIN_SCALE, SEAT_BAND, FELT_INSET, SEAT_GAP } from './geometry.js'
 
 describe('fitScale', () => {
   it('ne grossit jamais le tapis', () => {
@@ -31,5 +31,19 @@ describe('projectOnSeatRing', () => {
     expect(projectOnSeatRing(-50, 400)).toEqual({ x: L, y: 400 })
     expect(projectOnSeatRing(700, TABLE_H + 30)).toEqual({ x: 700, y: B })
     expect(projectOnSeatRing(-10, -10)).toEqual({ x: L, y: T })
+  })
+})
+
+describe('placeSeat', () => {
+  const B = TABLE_H - FELT_INSET
+  it('garde une place libre telle quelle', () => {
+    expect(placeSeat(300, B, [{ x: 720, y: B }])).toEqual({ x: 300, y: B, ok: true })
+  })
+  it("fait glisser une place trop proche jusqu'à l'écart minimal, du côté du lâcher", () => {
+    const p = placeSeat(700, B, [{ x: 720, y: B }])
+    expect(p.ok).toBe(true)
+    expect(p.y).toBe(B)
+    expect(720 - p.x).toBeGreaterThanOrEqual(SEAT_GAP)
+    expect(720 - p.x).toBeLessThan(SEAT_GAP + 3)
   })
 })
