@@ -96,11 +96,11 @@ export const MIN_SCALE = 0.45
 // chacune) et filet supérieur (2px). Cf. `.hand` dans Hand.svelte.
 export const HAND_CHROME = 14
 
-// Colonne de gauche (logo, joueurs, boutons, crédits) : large d'une carte et
-// demie À L'ÉCRAN, donc de 1,5 × CARD_W × échelle, plus ses marges et son
-// filet — les trois quarts de l'ancienne colonne (2 cartes + 24px).
-export const SIDEBAR_CARDS = 1.5
-export const SIDEBAR_CHROME = 18
+// Colonne de gauche (logo, joueurs, boutons, crédits) : large de 1,35 carte
+// À L'ÉCRAN, donc de 1,35 × CARD_W × échelle, plus ses marges et son filet —
+// réduite deux fois depuis l'origine (2 cartes + 24px) : −25 %, puis −10 %.
+export const SIDEBAR_CARDS = 1.35
+export const SIDEBAR_CHROME = 16
 export function sidebarWidth(scale) {
   return Math.round(SIDEBAR_CARDS * CARD_W * scale) + SIDEBAR_CHROME
 }
@@ -110,7 +110,7 @@ export function sidebarWidth(scale) {
 // bande de la main sous les deux.
 //
 // La main et la colonne de gauche dépendent elles-mêmes de l'échelle (cartes
-// de la main à la taille de celles du tapis, colonne large d'une carte et demie). On
+// de la main à la taille de celles du tapis, colonne large de 1,35 carte). On
 // résout tout d'un seul calcul plutôt que de laisser le tapis mesurer la place
 // restante — sinon chaque changement d'échelle redimensionnerait la main ou la
 // colonne, qui redimensionneraient le tapis, et ainsi de suite.

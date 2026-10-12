@@ -304,7 +304,7 @@
     playObserver = new ResizeObserver(() => { scale = fitScale(play.clientWidth, play.clientHeight) })
     playObserver.observe(play)
   }
-  // Colonne de gauche : une carte et demie de large, à l'échelle du tapis.
+  // Colonne de gauche : 1,35 carte de large, à l'échelle du tapis.
   $: sideW = sidebarWidth(scale)
   onDestroy(() => playObserver?.disconnect())
   // Cartes de la main à la taille des cartes du tapis, telles qu'affichées.
@@ -566,7 +566,7 @@
   /* Colonne de titre : les éléments de l'ancienne barre, empilés. Étroite à
      dessein — chaque pixel pris ici l'est sur la largeur du tapis, qui est ce
      qui limite sa taille sur une tablette. */
-  /* Largeur posée en ligne : une carte et demie à l’échelle du tapis (sidebarWidth),
+  /* Largeur posée en ligne : 1,35 carte à l’échelle du tapis (sidebarWidth),
      marges et filet compris — d'où le border-box. */
   .sidebar {
     grid-row: 1; grid-column: 1;
@@ -579,8 +579,8 @@
   }
   /* Logo : moitié de la largeur de la colonne, plafonné à 85px sur grand écran
      (la colonne y dépasse 280px), calé à gauche. */
-  /* Logo calé à gauche, plafonné à 85px. */
-  .brand-logo { display: block; flex: none; align-self: flex-start; width: 70%; max-width: 85px; height: auto; margin-bottom: .3rem; }
+  /* Logo centré, plafonné à 85px. */
+  .brand-logo { display: block; flex: none; align-self: center; width: 70%; max-width: 85px; height: auto; margin-bottom: .3rem; }
   /* Crédits en tout petit, alignés à gauche, une ligne chacun quand la place
      le permet. Le retour à la ligne reste autorisé : avec une police de base
      agrandie dans le navigateur (réglage ou zoom), une ligne interdite de
@@ -591,7 +591,7 @@
   .credits a { color: #ffd27a; text-decoration: underline; text-underline-offset: 2px; }
   .newgame { margin-top: auto; }
   .roster { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .3rem; }
-  .roster li { font-size: 1.05rem; color: #dfe; overflow-wrap: anywhere; }
+  .roster li { font-size: .98rem; color: #dfe; overflow-wrap: anywhere; }
   .roster li::before { content: '●'; color: #8a948f; font-size: 1em; margin-right: .35em; }
   .roster li.online::before { color: #6fe39a; }
   .roster li:not(.online) { opacity: .6; }
