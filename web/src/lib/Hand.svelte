@@ -5,7 +5,7 @@
   // revenir une carte, et glisser une carte vers la table.
   import { createEventDispatcher } from 'svelte'
   import Card from './Card.svelte'
-  import { dropAt, TARGETS } from './drag.js'
+  import { dropAt, cardCornerOnTable, TARGETS } from './drag.js'
   import { HAND_CHROME } from './geometry.js'
 
   export let hand = []          // cartes privées du joueur
@@ -35,7 +35,7 @@
 
   // Drag d'une carte de la main vers l'extérieur : le parent fait le hit-test.
   function onCardDrop(e) {
-    const { cardId, clientX, clientY } = e.detail
+    const { cardId, clientX, clientY, rect } = e.detail
     const hit = dropAt(clientX, clientY)
     if (hit && (hit.target === TARGETS.AVATAR)) {
       dispatch('transfer', { cardId, target: TARGETS.AVATAR, ownerId: hit.ownerId })
@@ -43,8 +43,10 @@
       // Lâchée dans sa propre main : la carte change de place dans la main.
       reorder(cardId, clientX)
     } else {
-      // Par défaut, déposer hors de la main = poser sur la table.
-      dispatch('transfer', { cardId, target: TARGETS.TABLE, x: hit?.x ?? 0, y: hit?.y ?? 0 })
+      // Par défaut, déposer hors de la main = poser sur la table, le coin de
+      // la carte là où le joueur la voit au lâcher (et non sous le pointeur).
+      const pos = (rect && cardCornerOnTable(rect.left, rect.top)) ?? { x: hit?.x ?? 0, y: hit?.y ?? 0 }
+      dispatch('transfer', { cardId, target: TARGETS.TABLE, x: Math.round(pos.x), y: Math.round(pos.y) })
     }
   }
   // Réordonnancement : la carte s'insère avant la première autre carte dont le

@@ -5,6 +5,8 @@
 // On renvoie { target, ownerId, x, y } où ownerId n'est rempli que pour un
 // avatar (data-owner="<userId>") ou la main (data-owner="self").
 
+import { FELT_INSET } from './geometry.js'
+
 export const TARGETS = {
   TABLE: 'table',
   SABOT: 'sabot',
@@ -45,6 +47,26 @@ export function dropAt(clientX, clientY, opts = {}) {
   // Aucun drop target : on considère qu'on relâche "dans le vide" -> aucun
   // transfert (la carte reste où elle était). Le caller décide.
   return null
+}
+
+// cardCornerOnTable convertit le coin supérieur gauche d'une carte, lu à
+// l'écran (getBoundingClientRect), en position sur le tapis dans le repère
+// partagé : échelle d'affichage (data-scale) et étirement horizontal
+// (data-kc, cf. geometry.js stretchMap) compris. Sert au lâcher d'une carte
+// venue de la main : poser le coin de la carte là où le joueur la voit, et
+// non à la position du pointeur — sinon la carte sautait d'autant que le
+// point de prise était loin de son coin. Null si le tapis est introuvable.
+export function cardCornerOnTable(screenLeft, screenTop) {
+  const el = document.querySelector('[data-drop="table"]')
+  if (!el) return null
+  const r = el.getBoundingClientRect()
+  const s = Number(el.getAttribute('data-scale')) || 1
+  const kc = Number(el.getAttribute('data-kc')) || 1
+  const vx = (screenLeft - r.left) / s
+  return {
+    x: FELT_INSET + (vx - FELT_INSET) / kc,
+    y: (screenTop - r.top) / s,
+  }
 }
 
 // Hit-test spécialisé pour la table uniquement : renvoie les coordonnées

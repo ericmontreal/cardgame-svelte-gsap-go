@@ -189,7 +189,10 @@
     // à la position d'origine. Si oui, on garde le rendu actuel (pas de
     // retour-puis-saut) jusqu'à ce que (c.x, c.y) confirme le serveur, cf.
     // afterUpdate.
-    const detail = { cardId: c.id, zone, x: curX, y: curY, clientX: e.clientX, clientY: e.clientY, accepted: false }
+    // rect : la carte telle qu'affichée au lâcher (transform du geste compris),
+    // pour qui doit la poser là où le joueur la voit (main → tapis).
+    const rect = rootEl?.getBoundingClientRect()
+    const detail = { cardId: c.id, zone, x: curX, y: curY, clientX: e.clientX, clientY: e.clientY, rect, accepted: false }
     dispatch('drop', detail)
     if (rootEl && !detail.accepted) gsap.set(rootEl, { x: 0, y: 0 })
   }
