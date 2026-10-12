@@ -700,7 +700,7 @@ func (e *engine) TransferMany(ids []string, target DropTarget, ownerID string) B
 	}
 	sort.SliceStable(picked, func(i, j int) bool { return picked[i].Z < picked[j].Z })
 	for _, c := range picked {
-		r := e.applyTransfer(c, c.Zone, Transfer{CardID: c.ID, Target: target, OwnerID: ownerID}, false)
+		r := e.applyTransfer(c, c.Zone, Transfer{CardID: c.ID, Target: target, OwnerID: ownerID})
 		res.PublicChanged = res.PublicChanged || r.PublicChanged
 		if r.HandOwner != "" {
 			res.HandOwners[r.HandOwner] = true
@@ -748,17 +748,17 @@ type TransferResult struct {
 }
 
 // applyTransfer réalise le transfert d'une carte déjà identifiée vers une cible.
-// fromZone = zone de la carte AVANT l'opération. dealt indique une véritable
-// distribution (tirage depuis le sabot vers une main, cf. DrawSabot) : seul ce
-// cas révèle la carte. Un dépôt sur la TABLE ne révèle jamais la carte, qu'il
-// s'agisse d'un simple déplacement ou d'un tirage direct sabot→tapis (une
-// carte n'est révélée que lorsqu'elle est donnée à un joueur, jamais posée
-// face visible sur le tapis automatiquement). Un simple déplacement (drag
-// main→tapis, tapis→main d'un autre joueur, etc. via TransferCard) ne doit
-// JAMAIS changer l'état face d'une carte : un joueur peut avoir choisi de
-// retourner une carte de sa main avant de la poser, ce choix doit être
-// respecté.
-func (e *engine) applyTransfer(c *Card, fromZone Zone, t Transfer, dealt bool) TransferResult {
+// fromZone = zone de la carte AVANT l'opération.
+//
+// Un transfert ne RETOURNE JAMAIS une carte vers le haut : seul le joueur la
+// retourne, d'un double-clic (Flip). Une carte distribuée depuis le sabot
+// arrivait jadis face visible dans la main de son destinataire ; elle y arrive
+// désormais face cachée, comme toute carte tirée d'un sabot, et son
+// propriétaire la retourne lui-même (consigne du 2026-10-12). Un simple
+// déplacement conserve la face choisie par le joueur. Seul le retour au sabot
+// remet la carte face cachée : le sabot est une pile cachée, la carte y
+// disparaît et ne doit pas en ressortir révélée.
+func (e *engine) applyTransfer(c *Card, fromZone Zone, t Transfer) TransferResult {
 	// Propriétaire AVANT mutation : non vide seulement si la carte venait
 	// d'une main (fromZone == ZoneHand). Permet de notifier ce joueur que sa
 	// main a perdu une carte, quelle que soit la destination (sinon la carte
@@ -810,9 +810,6 @@ func (e *engine) applyTransfer(c *Card, fromZone Zone, t Transfer, dealt bool) T
 		c.Owner = t.OwnerID
 		c.X, c.Y = 0, 0
 		c.Rotate = 0
-		if dealt {
-			c.FaceUp = true // distribution depuis le sabot : visible par son propriétaire
-		}
 		received := fromZone
 		if fromZone == ZoneHand && prevHandOwner == t.OwnerID {
 			received = ""
@@ -831,16 +828,16 @@ func (e *engine) applyTransfer(c *Card, fromZone Zone, t Transfer, dealt bool) T
 	return TransferResult{}
 }
 
-// TransferCard applique un transfert sur une carte identifiée par son ID. Ce
-// n'est jamais une distribution (dealt=false) : un simple drag ne change pas
-// l'état face de la carte, quelle que soit la zone source ou destination.
+// TransferCard applique un transfert sur une carte identifiée par son ID. Un
+// simple drag ne change pas l'état face de la carte, quelle que soit la zone
+// source ou destination.
 func (e *engine) TransferCard(t Transfer) TransferResult {
 	c := e.findCard(t.CardID)
 	if c == nil {
 		return TransferResult{}
 	}
 	fromZone := c.Zone
-	return e.applyTransfer(c, fromZone, t, false)
+	return e.applyTransfer(c, fromZone, t)
 }
 
 // DrawSabot tire la carte au sommet du sabot vers une cible (drag du sabot, §6).
@@ -858,9 +855,8 @@ func (e *engine) DrawSabot(t Transfer) (string, TransferResult) {
 		return "", TransferResult{}
 	}
 	// Une carte tirée du sabot devient publique (changement public) puis suit
-	// la cible du drop. C'est une véritable distribution (dealt=true) : elle
-	// est révélée dans sa nouvelle zone.
-	res := e.applyTransfer(c, ZoneSabot, t, true)
+	// la cible du drop, face cachée : seul un double-clic la retourne.
+	res := e.applyTransfer(c, ZoneSabot, t)
 	return id, res
 }
 

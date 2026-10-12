@@ -184,41 +184,41 @@ func TestTransferHandToTableAtDropPosition(t *testing.T) {
 
 func TestTransferPreservesFaceState(t *testing.T) {
 	// Un simple déplacement (drag) ne doit jamais changer l'état face d'une
-	// carte : seule une distribution depuis le sabot VERS UNE MAIN (DrawSabot,
-	// TargetAvatar/TargetHand) la révèle ; un dépôt sur la table ne révèle
-	// jamais, qu'il vienne d'un DnD manuel ou d'un tirage direct sabot→table.
-	// Un joueur doit pouvoir retourner une carte de sa main avant de la poser
-	// sur le tapis, et ce choix doit être respecté.
-	e := newEngineWithCards(t, 1)
-	id, _ := e.DrawSabot(Transfer{Target: TargetAvatar, OwnerID: "u-alice"}) // dealt=true -> face visible
-	if !e.findCard(id).FaceUp {
-		t.Fatal("une carte distribuée dans une main devrait être face visible")
-	}
-	if ok, _ := e.Flip(id); !ok { // alice retourne la carte face cachée dans sa main
-		t.Fatal("Flip aurait dû réussir")
-	}
-	if e.findCard(id).FaceUp {
-		t.Fatal("la carte devrait être face cachée après Flip")
+	// carte : seul le joueur la retourne (double-clic, Flip). La face qu'il a
+	// choisie dans sa main doit être conservée quand il la pose sur le tapis,
+	// dans un sens comme dans l'autre.
+	e := newEngineWithCards(t, 2)
+	id, _ := e.DrawSabot(Transfer{Target: TargetAvatar, OwnerID: "u-alice"}) // arrive face cachée
+	if ok, _ := e.Flip(id); !ok || !e.findCard(id).FaceUp { // alice la retourne face visible
+		t.Fatal("Flip aurait dû rendre la carte face visible")
 	}
 	e.TransferCard(Transfer{CardID: id, Target: TargetTable, X: 10, Y: 20})
-	if e.findCard(id).FaceUp {
-		t.Fatal("poser une carte face cachée sur le tapis ne devrait pas la révéler")
+	if !e.findCard(id).FaceUp {
+		t.Fatal("poser une carte face visible sur le tapis ne doit pas la cacher")
+	}
+	id2, _ := e.DrawSabot(Transfer{Target: TargetHand, OwnerID: "u-alice"}) // face cachée, non retournée
+	e.TransferCard(Transfer{CardID: id2, Target: TargetTable, X: 30, Y: 20})
+	if e.findCard(id2).FaceUp {
+		t.Fatal("poser une carte face cachée sur le tapis ne doit pas la révéler")
 	}
 }
 
-func TestDrawSabotRevealsOnlyWhenGivenToAPlayer(t *testing.T) {
-	// Une carte n'est révélée que lorsqu'elle est donnée à un joueur (avatar/
-	// main), jamais lors d'un simple dépôt sur la table : un tirage direct du
-	// sabot vers le tapis doit rester face cachée (comme un vrai jeu où l'on
-	// ne retourne pas automatiquement les cartes posées).
-	e := newEngineWithCards(t, 2)
+func TestDrawSabotNeverRevealsTheCard(t *testing.T) {
+	// Aucun retournement automatique : seul un double-clic retourne une carte.
+	// Tirée sur le tapis ou distribuée dans une main, elle reste face cachée.
+	e := newEngineWithCards(t, 3)
+	e.ensurePlayer("u-bob", "bob", tableW, tableH)
 	idTable, _ := e.DrawSabot(Transfer{Target: TargetTable, X: 0, Y: 0})
 	if e.findCard(idTable).FaceUp {
-		t.Fatal("une carte tirée du sabot directement sur la table devrait rester face cachée")
+		t.Fatal("une carte tirée du sabot sur la table doit rester face cachée")
 	}
 	idHand, _ := e.DrawSabot(Transfer{Target: TargetAvatar, OwnerID: "u-bob"})
-	if !e.findCard(idHand).FaceUp {
-		t.Fatal("une carte distribuée dans une main devrait être face visible pour son propriétaire")
+	if e.findCard(idHand).FaceUp {
+		t.Fatal("une carte distribuée dans une main doit arriver face cachée")
+	}
+	// Son propriétaire la retourne lui-même.
+	if ok, owner := e.Flip(idHand); !ok || owner != "u-bob" || !e.findCard(idHand).FaceUp {
+		t.Fatal("le propriétaire doit pouvoir retourner la carte de sa main")
 	}
 }
 
@@ -855,8 +855,8 @@ func TestFlipManyFlipsOncePerCardAndReportsHandOwners(t *testing.T) {
 	if c := e.findCard(onTable); !c.FaceUp {
 		t.Fatal("la carte de table devrait être face visible après un seul flip")
 	}
-	if c := e.findCard(inHand); c.FaceUp {
-		t.Fatal("la carte en main (distribuée face visible) devrait être retournée face cachée")
+	if c := e.findCard(inHand); !c.FaceUp {
+		t.Fatal("la carte en main (distribuée face cachée) devrait être retournée face visible")
 	}
 	if !owners["u-alice"] || len(owners) != 1 {
 		t.Fatalf("alice devrait être notifiée (sa main a changé), got %v", owners)
