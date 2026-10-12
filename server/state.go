@@ -73,11 +73,15 @@ type engine struct {
 	// départ. Cette mémoire est ce qui permet de retrouver sa chaise en
 	// revenant : voir ensurePlayer.
 	seats map[string]int // userID -> indice de siège
+	// seatPos retient la place qu'un joueur s'est choisie en déplaçant son
+	// avatar (MoveSeat). Elle prime sur le siège attribué, y compris à son
+	// retour après une absence ; mémoire en RAM, comme le reste.
+	seatPos map[string][2]float64
 	zTop  int            // compteur d'ordre Z (croissant = devant)
 }
 
 func newEngine() *engine {
-	return &engine{players: map[string]*Player{}, seats: map[string]int{}}
+	return &engine{players: map[string]*Player{}, seats: map[string]int{}, seatPos: map[string][2]float64{}}
 }
 
 // ---- Player management ----------------------------------------------------
@@ -117,6 +121,9 @@ func (e *engine) ensurePlayer(userID, name string, tableW, tableH float64) *Play
 	}
 	p := &Player{UserID: userID, Name: name}
 	e.layoutAvatar(p, seat, tableW, tableH)
+	if pos, ok := e.seatPos[userID]; ok {
+		p.AX, p.AY = pos[0], pos[1]
+	}
 	e.players[userID] = p
 	return p
 }
@@ -166,6 +173,49 @@ func (e *engine) layoutAvatar(p *Player, index int, w, h float64) {
 	a := float64(index%seats)*(2*math.Pi/seats) + math.Pi/2
 	p.AX = cx + rx*math.Cos(a)
 	p.AY = cy + ry*math.Sin(a)
+}
+
+// MoveSeat déplace l'avatar d'un joueur à la place qu'il a choisie, ramenée sur
+// le pourtour des sièges (projectOnSeatRing). Seul le joueur lui-même déplace
+// son avatar ; un joueur parti ne bouge plus. Renvoie true si la place change.
+func (e *engine) MoveSeat(userID string, x, y float64) bool {
+	p, ok := e.players[userID]
+	if !ok || p.Abandoned {
+		return false
+	}
+	if math.IsNaN(x) || math.IsNaN(y) || math.IsInf(x, 0) || math.IsInf(y, 0) {
+		return false
+	}
+	x, y = projectOnSeatRing(x, y)
+	if x == p.AX && y == p.AY {
+		return false
+	}
+	p.AX, p.AY = x, y
+	e.seatPos[userID] = [2]float64{x, y}
+	return true
+}
+
+// projectOnSeatRing ramène une position du tapis sur le pourtour où s'assoient
+// les avatars : le rectangle du bord du feutre. Le centre du cercle y est
+// toujours posé, si bien que le cercle empiète de moitié sur le feutre. Un
+// point intérieur rejoint le côté le plus proche ; un point extérieur, le point
+// du bord le plus proche. MÊME RÈGLE côté client (web/src/lib/geometry.js),
+// qui ne s'en sert que pour suivre le doigt pendant le geste.
+func projectOnSeatRing(x, y float64) (float64, float64) {
+	l, r, t, b := feltInset, tableW-feltInset, feltInset, tableH-feltInset
+	x, y = clampF(x, l, r), clampF(y, t, b)
+	dl, dr, dt, db := x-l, r-x, y-t, b-y
+	switch math.Min(math.Min(dl, dr), math.Min(dt, db)) {
+	case dl:
+		x = l
+	case dr:
+		x = r
+	case dt:
+		y = t
+	default:
+		y = b
+	}
+	return x, y
 }
 
 // removePlayer retire le joueur de la liste des connectés. Son siège reste

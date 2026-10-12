@@ -530,7 +530,12 @@
 
     <!-- Avatars des joueurs connectés -->
     {#each players as p (p.userId)}
-      <Avatar player={p} isMe={p.userId === myUserId} />
+      <Avatar
+        player={p}
+        isMe={p.userId === myUserId}
+        movable={p.userId === myUserId && !p.abandoned}
+        on:seat={(e) => dispatch('seatMove', e.detail)}
+      />
     {/each}
 
     <!-- Cartes sur la table -->

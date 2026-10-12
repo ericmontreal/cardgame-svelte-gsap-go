@@ -17,6 +17,7 @@
 //     { type:'sabotBottomMany', payload:{ cardIds:[...] } }        enfouit un lot SOUS le sabot
 //     { type:'sabotShuffle', payload:{} }                         mélange le sabot en cours de partie
 //     { type:'handOrder', payload:{ cardIds:[...] } }             ordre de sa propre main (gauche → droite)
+//     { type:'seatMove',  payload:{ x, y } }                       place de son avatar autour de la table
 //     { type:'abandon',   payload:{ policy:'table'|'sabot' } }     quitte la partie
 //     { type:'dragEnd',   payload:{} }                              drop annulé (efface le live)
 //     { type:'transfer',  payload:{ cardId, target, x, y, ownerId } }  change de zone
@@ -220,6 +221,11 @@ export function createWsClient(opts = {}) {
     // qui ne connaît pas ce message l'ignore : l'ordre reste alors local.
     sendHandOrder(cardIds) {
       return send({ type: 'handOrder', payload: { cardIds } })
+    },
+    // Nouvelle place de son avatar (repère du tapis) ; le serveur la ramène
+    // sur le pourtour des sièges et la diffuse.
+    sendSeatMove(x, y) {
+      return send({ type: 'seatMove', payload: { x, y } })
     },
     sendSabotShuffle() {
       return send({ type: 'sabotShuffle', payload: {} })

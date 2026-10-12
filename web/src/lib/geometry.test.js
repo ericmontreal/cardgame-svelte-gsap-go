@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { fitScale, sidebarWidth, TABLE_W, TABLE_H, CARD_H, HAND_CHROME, MIN_SCALE, SEAT_BAND } from './geometry.js'
+import { fitScale, sidebarWidth, projectOnSeatRing, TABLE_W, TABLE_H, CARD_H, HAND_CHROME, MIN_SCALE, SEAT_BAND, FELT_INSET } from './geometry.js'
 
 describe('fitScale', () => {
   it('ne grossit jamais le tapis', () => {
@@ -16,5 +16,20 @@ describe('fitScale', () => {
 
   it('plafonne la réduction pour garder des cartes lisibles', () => {
     expect(fitScale(200, 150)).toBe(MIN_SCALE)
+  })
+})
+
+describe('projectOnSeatRing', () => {
+  const L = FELT_INSET, R = TABLE_W - FELT_INSET, T = FELT_INSET, B = TABLE_H - FELT_INSET
+  it('rejoint le côté le plus proche depuis le tapis', () => {
+    expect(projectOnSeatRing(300, T + 10)).toEqual({ x: 300, y: T })
+    expect(projectOnSeatRing(300, B - 5)).toEqual({ x: 300, y: B })
+    expect(projectOnSeatRing(L + 3, 400)).toEqual({ x: L, y: 400 })
+    expect(projectOnSeatRing(R - 1, 400)).toEqual({ x: R, y: 400 })
+  })
+  it('ramène un point extérieur sur le bord', () => {
+    expect(projectOnSeatRing(-50, 400)).toEqual({ x: L, y: 400 })
+    expect(projectOnSeatRing(700, TABLE_H + 30)).toEqual({ x: 700, y: B })
+    expect(projectOnSeatRing(-10, -10)).toEqual({ x: L, y: T })
   })
 })

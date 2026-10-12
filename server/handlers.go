@@ -91,6 +91,11 @@ type payloadTransferMany struct {
 	OwnerID string   `json:"ownerId,omitempty"`
 }
 
+type payloadSeatMove struct {
+	X float64 `json:"x"`
+	Y float64 `json:"y"`
+}
+
 type payloadChat struct {
 	Text string `json:"text"`
 }
@@ -457,6 +462,22 @@ func (app *application) handleClientMsg(c *client, room string, m Message) {
 		app.engine.mu.Unlock()
 		if ok {
 			app.sendHand(room, c.userID)
+		}
+
+	// --- Place de son avatar autour de la table ----------------------------
+	case "seatMove":
+		// Le joueur a glissé son propre avatar. Le serveur ramène la place sur
+		// le pourtour des sièges et la diffuse : chacun voit le joueur changer
+		// de chaise. On ne déplace que l'avatar de l'émetteur.
+		var p payloadSeatMove
+		if err := json.Unmarshal(m.Payload, &p); err != nil {
+			return
+		}
+		app.engine.mu.Lock()
+		ok := app.engine.MoveSeat(c.userID, p.X, p.Y)
+		app.engine.mu.Unlock()
+		if ok {
+			app.broadcastState(room)
 		}
 
 	// --- Mélange du sabot en cours de partie -------------------------------

@@ -630,6 +630,41 @@ func TestSeatsCenterTheAvatarOnTheFeltEdge(t *testing.T) {
 	}
 }
 
+func TestMoveSeatKeepsTheAvatarOnTheFeltEdgeAndRemembersIt(t *testing.T) {
+	e := newEngine()
+	e.ensurePlayer("u-alice", "alice", tableW, tableH)
+	// Lâché au milieu du tapis, près du bord haut : ramené sur le bord haut.
+	if !e.MoveSeat("u-alice", 500, feltInset+30) {
+		t.Fatal("le déplacement aurait dû s'appliquer")
+	}
+	p := e.players["u-alice"]
+	if p.AX != 500 || p.AY != feltInset {
+		t.Fatalf("attendu (500, %.0f), obtenu (%.1f, %.1f)", feltInset, p.AX, p.AY)
+	}
+	// Lâché hors de la table : ramené au coin le plus proche.
+	e.MoveSeat("u-alice", -100, tableH+100)
+	if p.AX != feltInset || p.AY != tableH-feltInset {
+		t.Fatalf("coin bas gauche attendu, obtenu (%.1f, %.1f)", p.AX, p.AY)
+	}
+	// La place survit à une absence (onglet fermé puis rouvert).
+	e.removePlayer("u-alice")
+	q := e.ensurePlayer("u-alice", "alice", tableW, tableH)
+	if q.AX != feltInset || q.AY != tableH-feltInset {
+		t.Fatalf("la place choisie doit être retrouvée au retour, obtenu (%.1f, %.1f)", q.AX, q.AY)
+	}
+	// Valeurs absurdes et joueur parti : refusés.
+	if e.MoveSeat("u-alice", math.NaN(), 10) {
+		t.Fatal("une position NaN doit être refusée")
+	}
+	e.Abandon("u-alice", AbandonToTable)
+	if e.MoveSeat("u-alice", 600, feltInset) {
+		t.Fatal("un joueur parti ne déplace plus son avatar")
+	}
+	if e.MoveSeat("u-inconnu", 600, feltInset) {
+		t.Fatal("un joueur absent de la table ne déplace rien")
+	}
+}
+
 func TestShuffleSabotKeepsSameCardsAndLeavesTableAndHandsAlone(t *testing.T) {
 	e := newEngineWithCards(t, 52)
 	e.ensurePlayer("u-alice", "alice", tableW, tableH)

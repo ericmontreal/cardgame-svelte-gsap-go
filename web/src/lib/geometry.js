@@ -22,6 +22,26 @@ export const CARD_H = 196
 // pour les polices plus hautes (Android).
 export const SEAT_BAND = 40
 
+// projectOnSeatRing ramène une position du tapis sur le pourtour où s'assoient
+// les avatars : le rectangle du bord du feutre (FELT_INSET de chaque bord de la
+// table). Le centre du cercle d'un avatar y est toujours posé, si bien que le
+// cercle empiète de moitié sur le feutre où qu'on le place. Un point intérieur
+// rejoint le côté le plus proche ; un point extérieur, le point du bord le plus
+// proche. MÊME RÈGLE côté serveur (projectOnSeatRing, server/state.go), qui a
+// le dernier mot : celle-ci ne sert qu'à suivre le doigt pendant le geste.
+export function projectOnSeatRing(x, y) {
+  const l = FELT_INSET, r = TABLE_W - FELT_INSET, t = FELT_INSET, b = TABLE_H - FELT_INSET
+  x = Math.min(Math.max(x, l), r)
+  y = Math.min(Math.max(y, t), b)
+  const d = { l: x - l, r: r - x, t: y - t, b: b - y }
+  const m = Math.min(d.l, d.r, d.t, d.b)
+  if (m === d.l) x = l
+  else if (m === d.r) x = r
+  else if (m === d.t) y = t
+  else y = b
+  return { x, y }
+}
+
 // En deçà, les cartes deviennent illisibles : on laisse alors défiler.
 export const MIN_SCALE = 0.45
 

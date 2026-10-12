@@ -163,6 +163,7 @@
   }
   function sendSabotBottomMany(e) { ws?.sendSabotBottomMany(e.detail.cardIds) }
   function sendSabotShuffle() { ws?.sendSabotShuffle() }
+  function sendSeatMove(e) { ws?.sendSeatMove(e.detail.x, e.detail.y) }
   function sendHandOrder(e) {
     reorderHand(e.detail.cardIds)
     ws?.sendHandOrder(e.detail.cardIds)
@@ -437,6 +438,7 @@
           on:transfer={sendTransfer}
           on:sabotDraw={sendSabotDraw}
           on:shuffle={sendSabotShuffle}
+          on:seatMove={sendSeatMove}
         />
         </div>
 

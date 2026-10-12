@@ -209,6 +209,10 @@ légalité d'un coup — il n'y a pas de coup légal.
   sélection.
 - **Aimantage** optionnel d'une carte lâchée près d'une autre.
 - **Avatars** répartis autour de la table, portant le nombre de cartes en main.
+- **Changer de place** : chaque joueur fait glisser son propre avatar le long
+  du bord de la table. La place est ramenée sur le pourtour du feutre (le
+  cercle y empiète toujours de moitié), diffusée à tous et retrouvée au retour
+  d'une absence.
 - **Chat**, statut de connexion, reconnexion automatique avec backoff.
 - **Tablettes** : la table se réduit d'un bloc pour tenir dans la place
   disponible (jamais agrandie). Le jeu se joue **en paysage uniquement** : en
