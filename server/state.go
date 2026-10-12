@@ -2,6 +2,7 @@ package main
 
 import (
 	"math"
+	"slices"
 	"sort"
 	"sync"
 )
@@ -530,15 +531,26 @@ func (e *engine) Initialized() bool { return len(e.cards) > 0 }
 // table. Toute pile enfouie au fond (abandon, « Au fond du sabot ») est donc
 // redistribuée dans le paquet : c'est le sens même du geste. Renvoie le nombre
 // de cartes mélangées, ou 0 s'il y en a moins de deux (rien à mélanger).
+//
+// L'ordre obtenu diffère toujours de l'ordre de départ : un tirage qui laisse
+// le paquet intact (une chance sur deux avec deux cartes, une sur six avec
+// trois) passerait pour un mélange qui n'a pas eu lieu — surtout quand la
+// carte du dessus est face visible et que le sabot la montre (cf. SabotTop).
+// On retire donc ce cas ; sur un paquet réel (1/n!), c'est sans effet.
 func (e *engine) ShuffleSabot() int {
 	n := len(e.sabot)
 	if n < 2 {
 		return 0
 	}
-	rng.Shuffle(n, func(i, j int) {
-		e.sabot[i], e.sabot[j] = e.sabot[j], e.sabot[i]
-	})
-	return n
+	before := append([]string(nil), e.sabot...)
+	for {
+		rng.Shuffle(n, func(i, j int) {
+			e.sabot[i], e.sabot[j] = e.sabot[j], e.sabot[i]
+		})
+		if !slices.Equal(before, e.sabot) {
+			return n
+		}
+	}
 }
 
 // ---- Helpers (sous e.mu verrouillé) --------------------------------------

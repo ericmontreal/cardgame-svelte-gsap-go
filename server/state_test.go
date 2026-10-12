@@ -819,6 +819,32 @@ func TestShuffleSabotIsANoOpBelowTwoCards(t *testing.T) {
 	}
 }
 
+// Deux cartes, celle du dessus face visible : chaque mélange doit changer
+// l'ordre (sinon il passe pour inopérant), et l'état public doit montrer la
+// nouvelle carte du dessus — face cachée, donc rien.
+func TestShuffleSabotAlwaysChangesOrderAndSabotTopFollows(t *testing.T) {
+	e := newEngineWithCards(t, 2)
+	up := e.sabot[1]
+	e.findCard(up).FaceUp = true
+	for i := 0; i < 20; i++ {
+		before := append([]string(nil), e.sabot...)
+		if n := e.ShuffleSabot(); n != 2 {
+			t.Fatalf("mélange %d : annoncé %d cartes, attendu 2", i, n)
+		}
+		if before[0] != e.sabot[1] || before[1] != e.sabot[0] {
+			t.Fatalf("mélange %d : ordre inchangé %v", i, e.sabot)
+		}
+		top := e.snapshotPublic().SabotTop
+		if e.sabot[1] == up {
+			if top == nil || top.ID != up {
+				t.Fatalf("mélange %d : la carte visible est au-dessus mais SabotTop = %v", i, top)
+			}
+		} else if top != nil {
+			t.Fatalf("mélange %d : carte cachée au-dessus mais SabotTop montre %s", i, top.ID)
+		}
+	}
+}
+
 func TestTransferManyToSabotBottomKeepsPileOrderUnderTheShoe(t *testing.T) {
 	e := newEngineWithCards(t, 6)
 	var ids []string

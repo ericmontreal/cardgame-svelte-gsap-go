@@ -486,10 +486,12 @@ func (app *application) handleClientMsg(c *client, room string, m Message) {
 
 	// --- Mélange du sabot en cours de partie -------------------------------
 	case "sabotShuffle":
-		// L'état public ne change pas (le sabot n'expose que son nombre de
-		// cartes) : aucune diffusion d'état. On annonce en revanche le geste à
-		// toute la salle, émetteur compris, comme autour d'une vraie table où
-		// chacun voit qui bat les cartes.
+		// L'état public change : le sabot montre sa carte du dessus quand elle
+		// est face visible (SabotTop), et le mélange en amène une autre. Sans
+		// rediffusion, les joueurs voyaient encore l'ancienne carte du dessus
+		// alors qu'une autre allait sortir. On annonce aussi le geste à toute
+		// la salle, émetteur compris, comme autour d'une vraie table où chacun
+		// voit qui bat les cartes.
 		app.engine.mu.Lock()
 		n := app.engine.ShuffleSabot()
 		app.engine.mu.Unlock()
@@ -500,6 +502,7 @@ func (app *application) handleClientMsg(c *client, room string, m Message) {
 				Sender:  c.userID,
 				Payload: mustJSON(payloadShuffledOut{By: c.name, Count: n}),
 			}, nil)
+			app.broadcastState(room)
 		}
 
 	// --- Enfouissement d'un lot sous le sabot ------------------------------
