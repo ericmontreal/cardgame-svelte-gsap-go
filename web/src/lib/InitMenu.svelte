@@ -32,7 +32,7 @@
   const defaultJokers = 'none'
   const defaultShuffle = true
   const defaultSnapEnabled = true
-  const defaultHandFaceUp = false
+  const defaultHandFaceUp = true
 
   // ---- État du formulaire, pré-rempli depuis la config persistée ----
   const persisted = loadDeckConfig()
@@ -271,7 +271,10 @@
   .row.ranks { gap: .45rem; }
   .row.ranks .chip { padding: .4rem .6rem; }
   .row.ranks + .row.ranks { margin-top: .5rem; }
-  .chip.all { font-weight: 600; }
+  /* « Aucune » et « Toutes » : même largeur, pour que « 2 » et « Valets »
+     commencent à la même abscisse, et un écart un peu plus grand après elles,
+     qui les met légèrement à part des valeurs. */
+  .chip.all { font-weight: 600; box-sizing: border-box; min-width: 6.4rem; margin-right: .55rem; }
   .chip {
     display: inline-flex; align-items: center; gap: .4rem;
     padding: .45rem .7rem; border-radius: 999px; cursor: pointer;
