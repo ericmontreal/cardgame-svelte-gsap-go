@@ -553,9 +553,9 @@
     border-right: 2px solid rgba(255,255,255,0.1);
     font-size: .82rem; line-height: 1.3;
   }
-  /* Logo : toute la largeur de la colonne, plafonné pour ne pas envahir un
-     grand écran (la colonne y dépasse 280px). */
-  .brand-logo { display: block; width: 100%; max-width: 170px; height: auto; margin: 0 auto .3rem; }
+  /* Logo : moitié de la largeur de la colonne, plafonné à 85px sur grand écran
+     (la colonne y dépasse 280px), calé à gauche. */
+  .brand-logo { display: block; width: 50%; max-width: 85px; height: auto; margin: 0 0 .3rem; }
   .me { color: #ffd27a; font-weight: 700; overflow-wrap: anywhere; }
   .who { display: flex; flex-wrap: wrap; align-items: baseline; gap: .1rem .5rem; }
   .status { font-size: .78rem; opacity: .85; white-space: nowrap; }
