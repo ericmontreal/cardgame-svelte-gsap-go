@@ -10,6 +10,7 @@
     loadSession, saveSession, clearSession, resetLocal, login, isSessionValid,
   } from './lib/store.js'
   import { createWsClient } from './lib/ws-client.js'
+  import { reloadIfNewVersion } from './lib/version.js'
   import { ensureInlineSprite } from './lib/svg-sprite.js'
   import { fitScale, sidebarWidth, CARD_W, CARD_H } from './lib/geometry.js'
 
@@ -66,6 +67,10 @@
     unsubMsg = ws.on(handleServerMsg)
     unsubStatus = ws.onStatus((s) => {
       wsStatus.set(s)
+      // Connexion (re)nouée : une mise en ligne a peut-être eu lieu entre-temps
+      // (cf. version.js) — on recharge alors la page pour prendre la nouvelle
+      // interface, la session de l'onglet survivant au rechargement.
+      if (s === 'open') reloadIfNewVersion()
       // Connexion perdue : le serveur a peut-être redémarré, ce qui efface
       // toutes les sessions. Sans ce contrôle, l'onglet retentait sa
       // connexion indéfiniment avec un jeton mort, en affichant toujours la
@@ -279,6 +284,20 @@
     }
   })
   onDestroy(() => disconnectWs())
+
+  // Nouvelle version de l'interface : contrôlée aussi à intervalle régulier et
+  // au retour sur l'onglet — une mise en ligne de l'interface seule ne coupe
+  // pas la connexion, et l'onglet garderait sinon l'ancien code indéfiniment.
+  const VERSION_CHECK_MS = 60_000
+  function onVisible() { if (document.visibilityState === 'visible') reloadIfNewVersion() }
+  onMount(() => {
+    const timer = setInterval(reloadIfNewVersion, VERSION_CHECK_MS)
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      clearInterval(timer)
+      document.removeEventListener('visibilitychange', onVisible)
+    }
+  })
 
   // Statut lisible (infobulle de sa propre pastille, colonne de gauche).
   $: statusLabel = {
