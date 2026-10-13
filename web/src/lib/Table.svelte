@@ -89,6 +89,17 @@
   // retirer une carte. Les manipulations groupées partent ensuite en une seule
   // mutation par lot (moveMany/flipMany) vers le serveur autoritaire.
   let selected = new Set()    // ids des cartes de table sélectionnées
+  // Mode sélection, pour le doigt : entré par un appui long sur une carte ou
+  // par le bouton « Sélectionner » (App.svelte, lié par bind). Un toucher sur
+  // une carte l'ajoute ou la retire. Il prend fin quand la sélection se vide
+  // (cartes données, rendues au sabot...), au toucher du feutre vide ou par ✕.
+  export let selectMode = false
+  // Toute sélection qui se VIDE (dernière carte retirée, cartes parties au
+  // sabot, dans une main...) met fin au mode, comme dans la galerie d'Android.
+  function setSelected(next) {
+    if (selected.size > 0 && next.size === 0) selectMode = false
+    selected = next
+  }
   let marquee = null          // { x0,y0,x1,y1 } coords tapis, pendant le tracé
   let marqueeBase = new Set() // sélection au début du tracé (shift = union)
 
@@ -100,7 +111,7 @@
     const ids = new Set(tbl.map((c) => c.id))
     const next = new Set()
     for (const id of selected) if (ids.has(id)) next.add(id)
-    if (next.size !== selected.size) selected = next
+    if (next.size !== selected.size) setSelected(next)
   }
 
   function onToggleSelect(e) {
@@ -108,7 +119,7 @@
     const next = new Set(selected)
     if (next.has(id)) next.delete(id)
     else next.add(id)
-    selected = next
+    setSelected(next)
   }
 
   // CARD_W/CARD_H (geometry.js) : une carte est repérée par son COIN supérieur
@@ -142,6 +153,17 @@
       }
     }
     return members
+  }
+
+  // Appui long : la carte et toute la pile qu'elle forme avec ses voisines
+  // rejoignent la sélection, et la table passe en mode sélection. Un léger
+  // retour haptique confirme le geste (Android ; ignoré ailleurs).
+  function onLongPress(e) {
+    const pile = pileAt(e.detail.cardId)
+    if (!pile) return
+    selected = new Set([...(selectMode ? selected : []), ...pile])
+    selectMode = true
+    try { navigator.vibrate?.(30) } catch {}
   }
 
   function onSelectPile(e) {
@@ -208,10 +230,11 @@
   function selectionToSabotBottom() {
     if (selected.size === 0) return
     dispatch('sabotBottomMany', { cardIds: [...selected] })
-    selected = new Set()
+    setSelected(new Set())
   }
   function clearSelection() {
     selected = new Set()
+    selectMode = false
   }
 
   // Raccourcis de sélection (hors champs de saisie, ex. chat) : Échap vide la
@@ -219,10 +242,11 @@
   function onGlobalKey(e) {
     const tag = e.target && e.target.tagName
     if (tag === 'INPUT' || tag === 'TEXTAREA') return
-    if (selected.size === 0) return
+    if (selected.size === 0 && !selectMode) return
     if (e.key === 'Escape') {
       selected = new Set()
-    } else if (e.key === 'f' || e.key === 'F') {
+      selectMode = false
+    } else if ((e.key === 'f' || e.key === 'F') && selected.size > 0) {
       dispatch('flipMany', { cardIds: [...selected] })
     }
   }
@@ -250,15 +274,13 @@
     marquee = { ...marquee, x1: p.x, y1: p.y }
     const xa = Math.min(marquee.x0, marquee.x1), xb = Math.max(marquee.x0, marquee.x1)
     const ya = Math.min(marquee.y0, marquee.y1), yb = Math.max(marquee.y0, marquee.y1)
-    // Une carte est retenue si son point d'ancrage (c.x, c.y) tombe dans le
-    // rectangle. Cet ancrage est le COIN supérieur gauche, pas le centre
-    // (cf. `.card-anchor`) : il faut donc balayer le haut-gauche d'une carte
-    // pour l'attraper, pas son milieu. Comportement inchangé, mais le
-    // commentaire précédent affirmait le contraire.
+    // Une carte est retenue dès que le rectangle la TOUCHE. Auparavant, seul
+    // son coin supérieur gauche comptait : il fallait balayer ce coin précis,
+    // ce qui au doigt était peu naturel.
     const next = new Set(marqueeBase)
     for (const c of table) {
       const vx = sm.cardX(c.x)
-      if (vx >= xa && vx <= xb && c.y >= ya && c.y <= yb) next.add(c.id)
+      if (vx <= xb && vx + CARD_W >= xa && c.y <= yb && c.y + CARD_H >= ya) next.add(c.id)
     }
     selected = next
   }
@@ -267,7 +289,7 @@
     try { tableEl.releasePointerCapture(e.pointerId) } catch {}
     // Simple clic dans le vide (aucun tracé réel), sans shift : désélection.
     const traced = Math.abs(marquee.x1 - marquee.x0) > 4 || Math.abs(marquee.y1 - marquee.y0) > 4
-    if (!traced && !e.shiftKey) selected = new Set()
+    if (!traced && !e.shiftKey) { selected = new Set(); selectMode = false }
     marquee = null
   }
 
@@ -570,6 +592,7 @@
           width={CARD_W}
           height={CARD_H}
           selected={selected.has(card.id)}
+          {selectMode}
           on:drag={onCardDrag}
           on:drop={onCardDrop}
           on:flip={onCardFlip}
@@ -577,6 +600,7 @@
           on:rotate={onCardRotate}
           on:toggleselect={onToggleSelect}
           on:selectpile={onSelectPile}
+          on:longpress={onLongPress}
         />
       </div>
     {/each}
@@ -590,22 +614,28 @@
     {/if}
 
     <!-- Badge + actions de sélection multiple -->
-    {#if selected.size > 0}
+    {#if selected.size > 0 || selectMode}
       <!-- Contre-échelle : la barre garde sa taille réelle quelle que soit la
            réduction du tapis, sinon ses boutons deviennent inutilisables au
            doigt sur tablette. -->
       <div class="sel-chip" style="transform: translateX(-50%) scale({1 / scale});">
-        <span>{selected.size} carte{selected.size > 1 ? 's' : ''}</span>
+        {#if selected.size === 0}
+          <span>Touchez des cartes pour les sélectionner</span>
+        {:else}
+          <span>{selected.size} carte{selected.size > 1 ? 's' : ''}</span>
+        {/if}
         {#if selected.size > 1}
           <button title="Regrouper la sélection en une pile" on:click={stackSelection}>Empiler</button>
           <button title="Disposer la sélection en rangée" on:click={spreadSelection}>Étaler</button>
         {/if}
+        {#if selected.size > 0}
         <button title="Retourner toutes les cartes sélectionnées (F)" on:click={flipSelection}>Retourner</button>
         <button
           title="Remettre la sélection sous le sabot : ces cartes ne ressortiront qu'en dernier"
           on:click={selectionToSabotBottom}
         >Au fond du sabot</button>
-        <button title="Désélectionner (Échap)" on:click={clearSelection}>✕</button>
+        {/if}
+        <button title="Quitter la sélection (Échap)" on:click={clearSelection}>✕</button>
       </div>
     {/if}
   </div>

@@ -348,6 +348,8 @@
   // largeur du contenu, qui ne se comprime pas pendant le repli : il glisse).
   $: sideOpenW = sidebarWidth(scale)
   $: sideW = sidebarWidth(scale, sideFold)
+  // Mode sélection du tapis (Table.svelte), partagé avec le bouton de la colonne.
+  let selectMode = false
   // Tapis élargi à l'horizontale pour occuper toute la cellule quand la
   // hauteur limite l'échelle (geometry.js, tableStretch).
   $: tableStretchK = tableStretch(playW - sideW, scale)
@@ -507,6 +509,11 @@
             {/each}
           </ul>
           <!-- Boutons repoussés en bas de la colonne (margin-top: auto). -->
+          <!-- Mode sélection (doigt) : même effet qu'un appui long sur une
+               carte, pour qui ne connaît pas ce geste. -->
+          <button class="select" class:on={selectMode} aria-pressed={selectMode}
+                  title="Sélectionner plusieurs cartes du tapis d'un simple toucher (ou : appui long sur une carte)"
+                  on:click={() => (selectMode = !selectMode)}>Sélectionner</button>
           <button class="newgame" on:click={askNewGame}>Nouvelle partie</button>
           <button class="logout" on:click={askLeave}>Quitter la partie</button>
           <!-- Crédits au pied de la colonne, une ligne chacun. Lien dans un
@@ -524,6 +531,7 @@
         <Table
           {scale}
           stretch={tableStretchK}
+          bind:selectMode
           table={st.table}
           players={st.players}
           sabotCount={st.sabotCount}
@@ -673,7 +681,7 @@
   .credits span { display: block; }
   .credits span + span { margin-top: .1em; }
   .credits a { color: #ffd27a; text-decoration: underline; text-underline-offset: 2px; }
-  .newgame { margin-top: auto; }
+
   .roster { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .3rem; }
   .roster li { font-size: .98rem; color: #dfe; overflow-wrap: anywhere; }
   .roster li::before { content: '●'; color: #8a948f; font-size: 1em; margin-right: .35em; }
@@ -681,11 +689,13 @@
   .roster li:not(.online) { opacity: .6; }
   .roster li.me .name { color: #ffd27a; font-weight: 700; }
   .roster .you { font-size: .85em; opacity: .8; }
-  .newgame, .logout {
+  .select { margin-top: auto; }
+  .select.on { background: rgba(255,210,122,0.18); border-color: #ffd27a; color: #ffd27a; }
+  .select, .newgame, .logout {
     border: 1px solid rgba(255,255,255,0.2); background: transparent; color: #eef;
     padding: .4rem .4rem; border-radius: 7px; cursor: pointer; font-size: .8rem;
   }
-  .newgame:hover, .logout:hover { background: rgba(255,255,255,0.1); }
+  .select:hover, .newgame:hover, .logout:hover { background: rgba(255,255,255,0.1); }
 
   .body {
     display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: minmax(0, 1fr);

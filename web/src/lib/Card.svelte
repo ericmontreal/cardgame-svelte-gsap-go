@@ -21,6 +21,10 @@
   // La carte fait-elle partie de la sélection multiple ? (halo visuel, géré
   // par le parent Table.svelte — la carte ne connaît pas la sélection).
   export let selected = false
+  // Mode sélection de la table (appui long, bouton « Sélectionner ») : un
+  // simple toucher ajoute ou retire la carte de la sélection, au lieu de la
+  // mettre au premier plan ou de la retourner.
+  export let selectMode = false
 
   const dispatch = createEventDispatcher()
 
@@ -84,6 +88,16 @@
   let originX = 0, originY = 0    // position initiale de la carte (transform)
   let curX = 0, curY = 0          // dernière position suivie (centre carte) pendant le drag
   let dragScale = 1               // échelle du tapis au début du drag (cf. onPointerDown)
+
+  // ---- Appui long (tablette) ----
+  // Le doigt reste ~0,5 s sur une carte du tapis sans bouger : la table entre
+  // en mode sélection (Table.svelte). Le relâchement qui suit n'est alors ni
+  // un clic ni un double-clic. Si le doigt bouge ensuite, c'est un glisser
+  // ordinaire — celui de la sélection tout entière.
+  const LONG_PRESS_MS = 500
+  let longTimer = null
+  let longPressed = false
+  function cancelLongPress() { clearTimeout(longTimer); longTimer = null }
   let dragKc = 1                  // étirement horizontal du tapis (data-kc, Table.svelte)
 
   function onPointerDown(e) {
@@ -114,6 +128,16 @@
     // peu fiables sur un <use> SVG référencé sous Chromium.
     e.currentTarget.setPointerCapture(e.pointerId)
     e.preventDefault()
+    longPressed = false
+    cancelLongPress()
+    if (zone === 'table') {
+      longTimer = setTimeout(() => {
+        longTimer = null
+        if (!dragging || moved) return
+        longPressed = true
+        dispatch('longpress', { cardId: c.id })
+      }, LONG_PRESS_MS)
+    }
     dispatch('dragstart', { cardId: c.id })
   }
 
@@ -122,7 +146,7 @@
     // Seuil mesuré à l'écran (geste du joueur), delta converti dans le repère
     // du tapis : c'est aussi celui du transform GSAP ci-dessous, appliqué à
     // l'intérieur de la table réduite.
-    if (!moved && Math.hypot(e.clientX - startX, e.clientY - startY) > 3) moved = true
+    if (!moved && Math.hypot(e.clientX - startX, e.clientY - startY) > 3) { moved = true; cancelLongPress() }
     const dx = (e.clientX - startX) / dragScale
     const dy = (e.clientY - startY) / dragScale
     if (!moved) return
@@ -152,11 +176,20 @@
   function onPointerUp(e) {
     if (!dragging) return
     dragging = false
+    cancelLongPress()
     try { e.currentTarget.releasePointerCapture(e.pointerId) } catch {}
     if (!moved) {
       // Pas de déplacement réel : remise à zéro immédiate (rien à préserver).
       if (rootEl) gsap.set(rootEl, { x: 0, y: 0 })
       dispatch('dragend', { cardId: c.id, moved: false, clientX: e.clientX, clientY: e.clientY })
+      // Fin d'un appui long : la sélection est déjà faite, rien d'autre.
+      if (longPressed) { longPressed = false; lastClickAt = 0; return }
+      // Mode sélection : un toucher ajoute ou retire la carte, sans délai
+      // (pas d'attente d'un éventuel double-clic, qui ne retourne rien ici).
+      if (selectMode && zone === 'table') {
+        dispatch('toggleselect', { cardId: c.id })
+        return
+      }
       // Ctrl+clic (ou Cmd sur Mac) sur une carte de table : sélectionne toute
       // la pile sous cette carte (détection géométrique côté parent). Avec
       // Shift en plus, la pile s'ajoute à la sélection existante.
@@ -230,6 +263,7 @@
     on:pointerup={onPointerUp}
     on:pointercancel={onPointerUp}
     on:keydown={onKey}
+    on:contextmenu|preventDefault
   >
     <use bind:this={useEl}></use>
   </svg>
